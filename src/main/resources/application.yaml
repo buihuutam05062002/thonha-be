@@ -1,3 +1,21 @@
 spring:
   application:
     name: backend
+  datasource:
+    url: jdbc:mysql://localhost:3306/thonha?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+
+    username: root
+    password: 123456
+  flyway:
+      enabled: false
+      baseline-on-migrate: true
+      baseline-version: 0
+      baseline-description: "init"
+      locations: classpath:db/migration
+
+      validate-on-migrate: true
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: update
+
