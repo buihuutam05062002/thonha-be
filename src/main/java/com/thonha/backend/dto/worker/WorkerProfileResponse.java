@@ -1,6 +1,7 @@
 package com.thonha.backend.dto.worker;
 
 import com.thonha.backend.entity.ApprovalStatus;
+import com.thonha.backend.entity.AvailabilityStatus;
 import com.thonha.backend.entity.Role;
 import com.thonha.backend.entity.WorkerProfile;
 
@@ -15,6 +16,7 @@ public record WorkerProfileResponse(
         String operatingArea,
         Integer experienceYears,
         ApprovalStatus approvalStatus,
+        AvailabilityStatus availabilityStatus,
         List<Specialty> specialties,
         Set<String> role
 ){
@@ -35,6 +37,7 @@ public record WorkerProfileResponse(
                 profile.getOperatingArea(),
                 profile.getExperienceYears(),
                 profile.getApprovalStatus(),
+                profile.getAvailabilityStatus(),
                 specialties,
                 role
         );
