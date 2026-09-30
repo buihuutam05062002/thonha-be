@@ -1,5 +1,6 @@
 package com.thonha.backend.controller.worker;
 
+import com.thonha.backend.dto.available_status.UpdateAvailabilityRequest;
 import com.thonha.backend.dto.worker.RegisterWorkerProfileRequest;
 import com.thonha.backend.dto.worker.WorkerProfileResponse;
 import com.thonha.backend.entity.WorkerProfile;
@@ -35,5 +36,11 @@ public class WorkerController {
     public WorkerProfileResponse getMyProfile(
             @RequestHeader("X-User-Id") Long userId) {         
         return workerProfileService.getMyProfile(userId);
+    }
+    
+    @PatchMapping("/availability")
+    public WorkerProfileResponse updateAvailability(@RequestHeader("X-User-Id")Long userId,
+                                                    @Valid @RequestBody UpdateAvailabilityRequest request){
+        return workerProfileService.updateAvailability(userId, request.available());
     }
 }

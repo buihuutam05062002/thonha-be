@@ -107,4 +107,24 @@ public class WorkerProfileService {
                         HttpStatus.NOT_FOUND, "WORKER_PROFILE_NOT_FOUND", "Bạn chưa đăng ký hồ sơ thợ"));
         return WorkerProfileResponse.from(profile);
     }
+    
+    @Transactional
+    public WorkerProfileResponse updateAvailability(Long userId, boolean available){
+        WorkerProfile profile = workerProfileRepository.findByUserIdForUpdate(userId)
+                .orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND, "WORKER_PROFILE_NOT_FOUND", "Bạn chưa đăng ký hồ sơ thợ"));
+        if (profile.getUser().getStatus() == UserStatus.LOCKED) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "USER_LOCKED", "Tài khoản đang bị khóa");
+        }
+        if (profile.getApprovalStatus() != ApprovalStatus.APPROVED) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "WORKER_NOT_APPROVED",
+                    "Hồ sơ của bạn chưa được duyệt, chưa thể bật nhận việc");
+        }
+        if (profile.getAvailabilityStatus() == AvailabilityStatus.BUSY
+                || profile.getOngoingJobsCount() > 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "WORKER_BUSY",
+                    "Bạn đang có đơn đang thực hiện, không thể thay đổi trạng thái nhận việc");
+        }
+        profile.setAvailabilityStatus(available ? AvailabilityStatus.READY : AvailabilityStatus.OFFLINE);
+        return WorkerProfileResponse.from(profile);
+    }
 }
