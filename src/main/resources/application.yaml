@@ -1,3 +1,33 @@
 spring:
   application:
-    name: backend
+    name: thonha-backend
+  profiles:
+    active: dev
+    
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 30MB
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/thonha?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh&characterEncoding=UTF-8
+    username: ${DATABASE_USERNAME:}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+cloudinary:
+  cloud-name: 'vuqg2yxu'
+  api-key: '346862448354143'
+  api-secret: 'NUjxA--MtFXKR8SzEROnpXeHDVs'
+  
+server:
+  port: 8080
+  
