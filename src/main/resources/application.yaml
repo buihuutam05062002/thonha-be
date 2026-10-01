@@ -2,20 +2,33 @@ spring:
   application:
     name: backend
   datasource:
-    url: jdbc:mysql://localhost:3306/thonha?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/thonha?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh&characterEncoding=UTF-8
+    username: ${DATABASE_USERNAME:}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
-    username: root
-    password: 123456
-  flyway:
-      enabled: false
-      baseline-on-migrate: true
-      baseline-version: 0
-      baseline-description: "init"
-      locations: classpath:db/migration
-
-      validate-on-migrate: true
   jpa:
-    database-platform: org.hibernate.dialect.MySQLDialect
     hibernate:
       ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+#        dialect: org.hibernate.dialect.H2Dialect
 
+  h2:
+    console:
+      enabled: false
+      path: /h2-console
+
+#sql:
+#  init:
+#    mode: never
+
+cloudinary:
+  cloud-name: 'vuqg2yxu'
+  api-key: '346862448354143'
+  api-secret: 'NUjxA--MtFXKR8SzEROnpXeHDVs'
+
+server:
+  port: 8080

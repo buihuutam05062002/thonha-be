@@ -2,7 +2,7 @@ package com.thonha.backend.controller;
 
 import com.thonha.backend.dto.request.RejectWorkerRequest;
 import com.thonha.backend.dto.request.WorkerProfileSearchRequest;
-import com.thonha.backend.dto.response.WorkerProfileResponse;
+import com.thonha.backend.dto.response.AdminWorkerProfileResponse;
 import com.thonha.backend.service.WorkerApprovalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,25 +21,25 @@ public class WorkerApprovalController {
 
     // GET /api/admin/worker-profiles?status=PENDING&keyword=an&page=0&size=10
     @GetMapping
-    public Page<WorkerProfileResponse> list(
+    public Page<AdminWorkerProfileResponse> list(
             WorkerProfileSearchRequest req,
             @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.search(req, pageable);
     }
 
     @GetMapping("/{id}")
-    public WorkerProfileResponse detail(@PathVariable Long id) {
+    public AdminWorkerProfileResponse detail(@PathVariable Long id) {
         return service.getDetail(id);
     }
 
     @PatchMapping("/{id}/approve")
-    public WorkerProfileResponse approve(@PathVariable Long id,
+    public AdminWorkerProfileResponse approve(@PathVariable Long id,
                                          @RequestHeader("X-Reviewer-Id") Long reviewerId) {
         return service.approve(id, reviewerId);
     }
 
     @PatchMapping("/{id}/reject")
-    public WorkerProfileResponse reject(@PathVariable Long id,
+    public AdminWorkerProfileResponse reject(@PathVariable Long id,
                                         @RequestHeader("X-Reviewer-Id") Long reviewerId,
                                         @Valid @RequestBody RejectWorkerRequest body) {
         return service.reject(id, reviewerId, body.getReason());

@@ -1,10 +1,6 @@
 package com.thonha.backend.entity;
 
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
+import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -23,5 +19,5 @@ public class Role {
     String name;
 
     @ManyToMany(mappedBy = "roles")
-    Set<Users> users ;
+    Set<User> users;
 }

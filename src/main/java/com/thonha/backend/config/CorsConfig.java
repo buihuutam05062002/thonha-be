@@ -1,4 +1,4 @@
-package com.thonha.backend.security;
+package com.thonha.backend.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -13,3 +13,4 @@ public class CorsConfig implements WebMvcConfigurer {
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE");
     }
 }
+

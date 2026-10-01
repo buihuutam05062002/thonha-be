@@ -4,16 +4,13 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
-
-import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "worker_document")
+@Table(name = "worker_specialty", uniqueConstraints = @UniqueConstraint(columnNames = {"worker_profile_id", "service_category_id"}))
 @Getter
 @Setter
 @NoArgsConstructor
-public class WorkerDocument {
+public class WorkerSpecialty {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -21,16 +18,8 @@ public class WorkerDocument {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "worker_profile_id", nullable = false)
     private WorkerProfile workerProfile;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
-    private DocumentType type;
-
-    @Column(nullable = false, length = 500)
-    private String fileUrl;
-
-    @CreationTimestamp
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
+    
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "service_category_id", nullable = false)
+    private ServiceCategory serviceCategory;
 }
-

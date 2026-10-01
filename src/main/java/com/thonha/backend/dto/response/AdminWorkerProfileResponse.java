@@ -18,7 +18,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class WorkerProfileResponse {
+public class AdminWorkerProfileResponse {
     Long id;
     Long userId;
     String name;

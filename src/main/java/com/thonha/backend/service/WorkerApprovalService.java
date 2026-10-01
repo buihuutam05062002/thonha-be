@@ -1,12 +1,12 @@
 package com.thonha.backend.service;
 
 import com.thonha.backend.dto.request.WorkerProfileSearchRequest;
-import com.thonha.backend.dto.response.WorkerProfileResponse;
-import com.thonha.backend.dto.response.WorkerProfileResponse.DocumentResponse;
+import com.thonha.backend.dto.response.AdminWorkerProfileResponse;
+import com.thonha.backend.dto.response.AdminWorkerProfileResponse.DocumentResponse;
 import com.thonha.backend.entity.*;
-import com.thonha.backend.repository.UserRepository;
+import com.thonha.backend.repository.user.UserRepository;
 import com.thonha.backend.repository.WalletRepository;
-import com.thonha.backend.repository.WorkerProfileRepository;
+import com.thonha.backend.repository.worker.WorkerProfileRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -26,35 +26,35 @@ import java.util.Set;
 public class WorkerApprovalService {
 
     // Role được phép duyệt. Thêm role mới (vd. "STAFF") chỉ cần sửa ở đây.
-    static Set<String> REVIEWER_ROLES = Set.of("ADMIN", "STAFF");
+    static Set<String> REVIEWER_ROLES = Set.of("ROLE_ADMIN", "ROLE_STAFF");
 
     WorkerProfileRepository workerProfileRepository;
     UserRepository userRepository;
     WalletRepository walletRepository;
 
     @Transactional(readOnly = true)
-    public Page<WorkerProfileResponse> search(WorkerProfileSearchRequest req, Pageable pageable) {
+    public Page<AdminWorkerProfileResponse> search(WorkerProfileSearchRequest req, Pageable pageable) {
         return workerProfileRepository
                 .search(req.getStatus(), blankToNull(req.getKeyword()), blankToNull(req.getCity()), pageable)
                 .map(w -> toResponse(w, false));
     }
 
     @Transactional(readOnly = true)
-    public WorkerProfileResponse getDetail(Long id) {
+    public AdminWorkerProfileResponse getDetail(Long id) {
         WorkerProfile w = workerProfileRepository.findWithDetailById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hồ sơ thợ: " + id));
         return toResponse(w, true);
     }
 
     @Transactional
-    public WorkerProfileResponse approve(Long profileId, Long reviewerId) {
-        Users reviewer = loadReviewer(reviewerId);
+    public AdminWorkerProfileResponse approve(Long profileId, Long reviewerId) {
+        User reviewer = loadReviewer(reviewerId);
         WorkerProfile w = loadPendingForUpdate(profileId);
 
-        if (w.getUser().getUserStatus() != UserStatus.ACTIVE) {
+        if (w.getUser().getStatus() != UserStatus.ACTIVE) {
             throw new IllegalStateException("Tài khoản của thợ không ở trạng thái hoạt động");
         }
-        boolean hasIdCard = w.getDocuments().stream().anyMatch(d -> d.getType() == DocumentType.ID_CARD);
+        boolean hasIdCard = w.getDocuments().stream().anyMatch(d -> d.getType() == DocumentType.CCCD_FRONT);
         if (!hasIdCard) {
             throw new IllegalStateException("Hồ sơ chưa có giấy tờ tùy thân (CCCD)");
         }
@@ -72,11 +72,11 @@ public class WorkerApprovalService {
     }
 
     @Transactional
-    public WorkerProfileResponse reject(Long profileId, Long reviewerId, String reason) {
-        Users reviewer = loadReviewer(reviewerId);
+    public AdminWorkerProfileResponse reject(Long profileId, Long reviewerId, String reason) {
+        User reviewer = loadReviewer(reviewerId);
         WorkerProfile w = loadPendingForUpdate(profileId);
 
-        w.setApprovalStatus(ApprovalStatus.REJECTED);
+        w.setApprovalStatus(ApprovalStatus.REJECT);
         w.setRejectReason(reason.trim());
         stamp(w, reviewer);
         return toResponse(w, true);
@@ -94,16 +94,16 @@ public class WorkerApprovalService {
         return w;
     }
 
-    private void stamp(WorkerProfile w, Users reviewer) {
+    private void stamp(WorkerProfile w, User reviewer) {
         w.setReviewedBy(reviewer);
         w.setReviewedAt(LocalDateTime.now());
     }
 
     /** Điểm kiểm tra quyền duy nhất. Sau này thay bằng Spring Security. */
-    private Users loadReviewer(Long reviewerId) {
-        Users u = userRepository.findById(reviewerId)
+    private User loadReviewer(Long reviewerId) {
+        User u = userRepository.findById(reviewerId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người duyệt: " + reviewerId));
-        if (u.getUserStatus() != UserStatus.ACTIVE) {
+        if (u.getStatus() != UserStatus.ACTIVE) {
             throw new IllegalStateException("Tài khoản người duyệt không hoạt động");
         }
         boolean allowed = u.getRoles().stream().anyMatch(r -> REVIEWER_ROLES.contains(r.getName()));
@@ -113,30 +113,30 @@ public class WorkerApprovalService {
         return u;
     }
 
-    private WorkerProfileResponse toResponse(WorkerProfile w, boolean withDocs) {
-        Users u = w.getUser();
-        Users r = w.getReviewedBy();
+    private AdminWorkerProfileResponse toResponse(WorkerProfile w, boolean withDocs) {
+        User u = w.getUser();
+        User r = w.getReviewedBy();
         List<DocumentResponse> docs = withDocs
                 ? w.getDocuments().stream()
-                .map(d -> new DocumentResponse(d.getId(), d.getType().name(), d.getUrl()))
+                .map(d -> new DocumentResponse(d.getId(), d.getType().name(), d.getFileUrl()))
                 .toList()
                 : List.of();
 
-        return WorkerProfileResponse.builder()
+        return AdminWorkerProfileResponse.builder()
                 .id(w.getId())
                 .userId(u.getId())
-                .name(u.getName())
+                .name(u.getFullName())
                 .email(u.getEmail())
                 .phoneNumber(u.getPhoneNumber())
                 .avatar(u.getAvatar())
-                .serviceArea(w.getServiceArea())
-                .residenceCity(w.getResidenceCity())
-                .yearsOfExperience(w.getYearsOfExperience())
+                .serviceArea(w.getOperatingArea())
+                .residenceCity(w.getProvinceCity())
+                .yearsOfExperience(w.getExperienceYears())
                 .approvalStatus(w.getApprovalStatus().name())
                 .approvalStatusText(w.getApprovalStatus().getDescription())
-                .avgRating(w.getAvgRating())
+                .avgRating(w.getAverageRating())
                 .reviewedById(r != null ? r.getId() : null)
-                .reviewedByName(r != null ? r.getName() : null)
+                .reviewedByName(r != null ? r.getFullName() : null)
                 .reviewedAt(w.getReviewedAt())
                 .rejectReason(w.getRejectReason())
                 .documents(docs)
