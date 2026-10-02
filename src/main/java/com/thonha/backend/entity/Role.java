@@ -2,22 +2,22 @@ package com.thonha.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import lombok.experimental.FieldDefaults;
-
-import java.util.Set;
 
 @Entity
+@Table(name = "roles")
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
+@AllArgsConstructor
 public class Role {
+    public static final String ADMIN = "ADMIN", CUSTOMER = "CUSTOMER", WORKER = "WORKER";
     @Id
-    @Column(name = "role_id")
-    Integer id;
-    String name;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
+    @Column(nullable = false, unique = true, length = 30)
+    private String name;
 
-    @ManyToMany(mappedBy = "roles")
-    Set<User> users;
+    public Role(String name) {
+        this.name = name;
+    }
 }

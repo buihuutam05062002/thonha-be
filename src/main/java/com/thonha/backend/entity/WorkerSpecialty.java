@@ -1,25 +1,25 @@
 package com.thonha.backend.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Entity
-@Table(name = "worker_specialty", uniqueConstraints = @UniqueConstraint(columnNames = {"worker_profile_id", "service_category_id"}))
+@Table(name = "worker_specialty")
 @Getter
 @Setter
 @NoArgsConstructor
 public class WorkerSpecialty {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "worker_profile_id", nullable = false)
+
+    @EmbeddedId
+    private WorkerSpecialtyId id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @MapsId("workerProfileId")
+    @JoinColumn(name = "worker_profile_id")
     private WorkerProfile workerProfile;
-    
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "service_category_id", nullable = false)
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @MapsId("serviceCategoryId")
+    @JoinColumn(name = "service_category_id")
     private ServiceCategory serviceCategory;
 }

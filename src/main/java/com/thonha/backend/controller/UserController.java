@@ -1,45 +1,32 @@
 package com.thonha.backend.controller;
 
-import com.thonha.backend.dto.request.UserSearchRequest;
-import com.thonha.backend.dto.request.UserCreateRequest;
-import com.thonha.backend.dto.response.UserResponse;
-import com.thonha.backend.entity.UserStatus;
-import com.thonha.backend.service.UserService;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
-import org.springframework.http.ResponseEntity;
+import com.thonha.backend.dto.UserResponse;
+import com.thonha.backend.security.CurrentUserProvider;
+import com.thonha.backend.service.AuthService;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/users")
-@RequiredArgsConstructor
+@RequestMapping("/api/v1/users")
 public class UserController {
-    private final UserService userService;
+    private final AuthService s;
+    private final CurrentUserProvider current;
 
-    @PostMapping
-    public ResponseEntity<UserResponse> create(@Valid @RequestBody UserCreateRequest request) {
-        return ResponseEntity.ok(userService.createUser(request));
+    public UserController(AuthService s, CurrentUserProvider c) {
+        this.s = s;
+        current = c;
     }
 
-    @GetMapping
-    public ResponseEntity<Page<UserResponse>> getAll(
-            UserSearchRequest request,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
-            Pageable pageable) {
-        return ResponseEntity.ok(userService.getUsers(request, pageable));
+    @GetMapping("/me")
+    UserResponse me() {
+        return s.me(current.requireUserId());
     }
 
-    @PatchMapping("/{id}/status")
-    public ResponseEntity<UserResponse> setStatus(@PathVariable Long id, @RequestParam UserStatus userStatus) {
-        return ResponseEntity.ok(userService.setStatus(id, userStatus));
+    @PutMapping("/me")
+    UserResponse update(@RequestBody UpdateProfileRequest r) {
+        return s.update(current.requireUserId(), r.fullName(), r.avatarUrl());
     }
 
-    @GetMapping("/{id}")
-    public UserResponse getById(@PathVariable Long id) {
-        return userService.getById(id);
+    public record UpdateProfileRequest(@NotBlank String fullName, String avatarUrl) {
     }
 }

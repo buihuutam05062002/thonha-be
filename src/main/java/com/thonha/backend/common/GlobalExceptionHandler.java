@@ -3,12 +3,14 @@ package com.thonha.backend.common;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -58,5 +60,13 @@ public class GlobalExceptionHandler {
         log.error("Unexpected error: ", ex);
         return ResponseEntity.internalServerError()
                 .body(new ErrorResponse("INTERNAL_ERROR", "Lỗi hệ thống", Collections.emptyMap()));
+    }
+
+
+
+
+    @ExceptionHandler(OrsException.class)
+    public ProblemDetail handleOrs(OrsException ex) {
+        return ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
     }
 }

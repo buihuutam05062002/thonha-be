@@ -1,9 +1,7 @@
 package com.thonha.backend.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Entity
 @Table(name = "service_category")
@@ -13,16 +11,14 @@ import lombok.Setter;
 public class ServiceCategory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
+    Long id;
     @Column(nullable = false, unique = true, length = 100)
-    private String name;
-    
-    private String description;
-    
-    private String icon;
-    
+    String name;
+    @Column(length = 500)
+    String description;
+    @Column(length = 255)
+    String icon;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false,length = 20)
-    private CategoryStatus status = CategoryStatus.ACTIVE;
+    @Column(nullable = false, length = 20)
+    CategoryStatus status = CategoryStatus.ACTIVE;
 }

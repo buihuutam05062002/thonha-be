@@ -1,14 +1,10 @@
 package com.thonha.backend.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
+import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 @Entity
 @Table(name = "users")
@@ -18,42 +14,43 @@ import java.util.Set;
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id")
     private Long id;
-    
-    @Column(nullable = false, length = 100)
+    @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
-    
-    @Column(name = "username", nullable = true, length = 50)
+    @Column(length = 100)
     private String username;
-    
-    @Column(unique = true, length = 100)
+    @Column(unique = true, length = 150)
     private String email;
-    
-    @Column(nullable = false, unique = true, length = 15)
+    @Column(name = "phone_number", unique = true, length = 20)
     private String phoneNumber;
-    
-    @Column(nullable = false)
+    @Column(nullable = false, length = 255)
     private String password;
-    
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false,length = 20)
+    @Column(nullable = false, length = 20)
     private UserStatus status = UserStatus.ACTIVE;
-    
-    private String avatar;
-    
-    @CreationTimestamp
-    @Column(updatable = false)
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-    
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
     @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "user_role",
-            joinColumns = @JoinColumn(name = "user_id", referencedColumnName = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id", referencedColumnName = "role_id"))
+    @JoinTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
-    
-    public boolean hasRole(String roleName){
-        return roles.stream().anyMatch(r->r.getName().equals(roleName));
+
+    @PrePersist
+    void pre() {
+        var n = LocalDateTime.now();
+        createdAt = n;
+        updatedAt = n;
+    }
+
+    @PreUpdate
+    void upd() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    public boolean hasRole(String role) {
+        return roles.stream().anyMatch(r -> role.equals(r.getName()));
     }
 }
