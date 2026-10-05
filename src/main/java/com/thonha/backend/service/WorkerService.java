@@ -1,74 +1,124 @@
 package com.thonha.backend.service;
 
-import com.thonha.backend.dto.worker.*;
+import com.thonha.backend.common.ApiException;
+import com.thonha.backend.common.ErrorCode;
+import com.thonha.backend.dto.request.AvailabilityRequest;
+import com.thonha.backend.dto.request.RegisterWorkerProfileRequest;
+import com.thonha.backend.dto.response.WorkerProfileResponse;
 import com.thonha.backend.entity.*;
-import com.thonha.backend.exception.*;
+import com.thonha.backend.enums.*;
 import com.thonha.backend.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.*;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class WorkerService {
-    private final UserRepository users;
-    private final RoleRepository roles;
-    private final WorkerProfileRepository profiles;
-    private final ServiceCategoryRepository categories;
-    private final CloudinaryService cloudinary;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final WorkerProfileRepository workerProfileRepository;
+    private final ServiceCategoryRepository serviceCategoryRepository;
+    private final CloudinaryService cloudinaryService;
 
-    public WorkerService(UserRepository u, RoleRepository r, WorkerProfileRepository p, ServiceCategoryRepository c, CloudinaryService cl) {
-        users = u;
-        roles = r;
-        profiles = p;
-        categories = c;
-        cloudinary = cl;
+    public WorkerService(UserRepository userRepository,
+                         RoleRepository roleRepository,
+                         WorkerProfileRepository workerProfileRepository,
+                         ServiceCategoryRepository serviceCategoryRepository,
+                         CloudinaryService cloudinaryService) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.workerProfileRepository = workerProfileRepository;
+        this.serviceCategoryRepository = serviceCategoryRepository;
+        this.cloudinaryService = cloudinaryService;
     }
 
     @Transactional
-    public WorkerProfileResponse register(Long uid, RegisterWorkerProfileRequest req, MultipartFile front, MultipartFile back, List<MultipartFile> certificates, List<MultipartFile> degrees) {
-        User u = users.findById(uid).orElseThrow(() -> new NotFoundException("User not found"));
-        if (u.getStatus() == UserStatus.LOCKED) throw new BadRequestException("Account is locked");
-        if (profiles.existsByUserId(uid)) throw new BadRequestException("Worker profile already exists");
-        if (front == null || back == null || front.isEmpty() || back.isEmpty())
-            throw new BadRequestException("CCCD front and back are required");
-        Set<Long> ids = new HashSet<>(req.categoryIds());
-        List<ServiceCategory> cs = categories.findByIdInAndStatus(ids, CategoryStatus.ACTIVE);
-        if (cs.size() != ids.size()) throw new BadRequestException("One or more service categories are invalid");
-        WorkerProfile p = new WorkerProfile();
-        p.setUser(u);
-        p.setProvinceCity(req.provinceCity().trim());
-        p.setOperatingArea(req.operatingArea().trim());
-        p.setExperienceYears(req.experienceYears());
-        cs.forEach(p::addSpecialty);
-        String folder = "vuatho/workers/" + uid;
-        p.addDocument(DocumentType.CCCD_FRONT, cloudinary.upload(front, folder));
-        p.addDocument(DocumentType.CCCD_BACK, cloudinary.upload(back, folder));
-        for (var f : safe(certificates)) p.addDocument(DocumentType.CERTIFICATE, cloudinary.upload(f, folder));
-        for (var f : safe(degrees)) p.addDocument(DocumentType.DEGREE, cloudinary.upload(f, folder));
-        profiles.save(p);
-        if (!u.hasRole(Role.WORKER))
-            u.getRoles().add(roles.findByName(Role.WORKER).orElseThrow(() -> new IllegalStateException("WORKER role not configured")));
-        return WorkerProfileResponse.from(p);
+    public WorkerProfileResponse register(Long userId, RegisterWorkerProfileRequest request,
+                                          MultipartFile cccdFront, MultipartFile cccdBack,
+                                          List<MultipartFile> certificates, List<MultipartFile> degrees) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
+
+        if (user.getStatus() == UserStatus.LOCKED) {
+            throw new ApiException(ErrorCode.ACCOUNT_LOCKED);
+        }
+        if (workerProfileRepository.existsByUserId(userId)) {
+            throw new ApiException(ErrorCode.WORKER_PROFILE_EXISTS);
+        }
+        if (cccdFront == null || cccdFront.isEmpty() || cccdBack == null || cccdBack.isEmpty()) {
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "CCCD mặt trước và mặt sau là bắt buộc");
+        }
+
+        Set<Long> categoryIds = request.getCategoryIds().stream().collect(Collectors.toSet());
+        List<ServiceCategory> categories = serviceCategoryRepository.findByIdInAndStatus(categoryIds, CategoryStatus.ACTIVE);
+        if (categories.size() != categoryIds.size()) {
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "Một hoặc nhiều chuyên môn không hợp lệ hoặc không hoạt động");
+        }
+
+        WorkerProfile profile = WorkerProfile.builder()
+                .user(userRepository.getReferenceById(userId))
+                .provinceCity(request.getProvinceCity().trim())
+                .operatingArea(request.getOperatingArea().trim())
+                .experienceYears(request.getExperienceYears())
+                .build();
+
+        categories.forEach(profile::addSpecialty);
+
+        String folder = "nhatho/workers/" + userId;
+        profile.addDocument(DocumentType.CCCD_FRONT, cloudinaryService.upload(cccdFront, folder));
+        profile.addDocument(DocumentType.CCCD_BACK, cloudinaryService.upload(cccdBack, folder));
+
+        if (certificates != null) {
+            for (MultipartFile file : certificates) {
+                if (file != null && !file.isEmpty()) {
+                    profile.addDocument(DocumentType.CERTIFICATE, cloudinaryService.upload(file, folder));
+                }
+            }
+        }
+        if (degrees != null) {
+            for (MultipartFile file : degrees) {
+                if (file != null && !file.isEmpty()) {
+                    profile.addDocument(DocumentType.DEGREE, cloudinaryService.upload(file, folder));
+                }
+            }
+        }
+
+        workerProfileRepository.save(profile);
+
+        if (!user.hasRole(Role.WORKER)) {
+            user.getRoles().add(getRole(Role.WORKER));
+        }
+
+        return WorkerProfileResponse.from(workerProfileRepository.save(profile));
     }
 
-    @Transactional(readOnly = true)
-    public WorkerProfileResponse me(Long uid) {
-        return WorkerProfileResponse.from(profiles.findByUserId(uid).orElseThrow(() -> new NotFoundException("Worker profile not found")));
+    public WorkerProfileResponse getProfile(Long userId) {
+        return workerProfileRepository.findByUserId(userId)
+                .map(WorkerProfileResponse::from)
+                .orElseThrow(() -> new ApiException(ErrorCode.WORKER_NOT_FOUND));
     }
 
-    @Transactional
-    public WorkerProfileResponse updateAvailability(Long uid, boolean available) {
-        WorkerProfile p = profiles.findByUserId(uid).orElseThrow(() -> new NotFoundException("Worker profile not found"));
-        if (p.getApprovalStatus() != ApprovalStatus.APPROVED)
-            throw new BadRequestException("Worker profile is not approved");
-        if (p.getOngoingJobsCount() > 0) throw new BadRequestException("Worker has ongoing jobs");
-        p.setAvailabilityStatus(available ? AvailabilityStatus.READY : AvailabilityStatus.OFFLINE);
-        return WorkerProfileResponse.from(p);
+    public WorkerProfileResponse updateAvailability(Long userId, AvailabilityRequest request) {
+        WorkerProfile profile = workerProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new ApiException(ErrorCode.WORKER_NOT_FOUND));
+
+        if (profile.getApprovalStatus() != ApprovalStatus.APPROVED) {
+            throw new ApiException(ErrorCode.WORKER_NOT_APPROVED);
+        }
+        if (profile.getOngoingJobsCount() > 0) {
+            throw new ApiException(ErrorCode.WORKER_HAS_ONGOING_JOBS);
+        }
+
+        profile.setAvailabilityStatus(request.isAvailable() ? AvailabilityStatus.READY : AvailabilityStatus.OFFLINE);
+        return WorkerProfileResponse.from(workerProfileRepository.save(profile));
     }
 
-    private List<MultipartFile> safe(List<MultipartFile> x) {
-        return x == null ? List.of() : x.stream().filter(f -> f != null && !f.isEmpty()).toList();
+    private Role getRole(String name) {
+        return roleRepository.findByName(name)
+                .orElseThrow(() -> new IllegalStateException("Role not configured: " + name));
     }
 }

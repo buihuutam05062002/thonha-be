@@ -1,6 +1,7 @@
 package com.thonha.backend.dto;
 
 import com.thonha.backend.entity.*;
+import com.thonha.backend.enums.UserStatus;
 
 import java.util.*;
 

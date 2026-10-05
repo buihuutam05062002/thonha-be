@@ -1,84 +1,108 @@
 package com.thonha.backend.service;
 
-import com.thonha.backend.dto.address.*;
-import com.thonha.backend.entity.*;
-import com.thonha.backend.exception.*;
-import com.thonha.backend.repository.*;
+import com.thonha.backend.common.ApiException;
+import com.thonha.backend.common.ErrorCode;
+import com.thonha.backend.dto.request.AddressRequest;
+import com.thonha.backend.dto.response.AddressResponse;
+import com.thonha.backend.entity.Address;
+import com.thonha.backend.entity.User;
+import com.thonha.backend.repository.AddressRepository;
+import com.thonha.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class AddressService {
-    private final AddressRepository repo;
-    private final UserRepository users;
+    private final AddressRepository addressRepository;
+    private final UserRepository userRepository;
 
-    public AddressService(AddressRepository r, UserRepository u) {
-        repo = r;
-        users = u;
+    public AddressService(AddressRepository addressRepository, UserRepository userRepository) {
+        this.addressRepository = addressRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional(readOnly = true)
-    public List<AddressResponse> list(Long uid) {
-        return repo.findByUserIdOrderByDefaultAddressDescIdDesc(uid).stream().map(AddressResponse::from).toList();
+    public List<AddressResponse> list(Long userId) {
+        return addressRepository.findByUserIdOrderByDefaultAddressDescIdDesc(userId)
+                .stream()
+                .map(AddressResponse::from)
+                .collect(Collectors.toList());
     }
 
     @Transactional
-    public AddressResponse create(Long uid, AddressRequest r) {
-        Address a = new Address();
-        a.setUser(user(uid));
-        copy(a, r);
-        if (r.defaultAddress() || repo.countByUserId(uid) == 0) {
-            clear(uid);
-            a.setDefaultAddress(true);
+    public AddressResponse create(Long userId, AddressRequest request) {
+        User user = getUser(userId);
+        Address address = new Address();
+        address.setUser(user);
+        copy(address, request);
+
+        if (Boolean.TRUE.equals(request.getDefaultAddress()) || addressRepository.countByUserId(userId) == 0) {
+            clearDefault(userId);
+            address.setDefaultAddress(true);
         }
-        return AddressResponse.from(repo.save(a));
+
+        return AddressResponse.from(addressRepository.save(address));
     }
 
     @Transactional
-    public AddressResponse update(Long uid, Long id, AddressRequest r) {
-        Address a = own(uid, id);
-        if (r.defaultAddress()) clear(uid);
-        copy(a, r);
-        a.setDefaultAddress(r.defaultAddress());
-        return AddressResponse.from(a);
+    public AddressResponse update(Long userId, Long id, AddressRequest request) {
+        Address address = own(userId, id);
+        if (Boolean.TRUE.equals(request.getDefaultAddress())) {
+            clearDefault(userId);
+        }
+        copy(address, request);
+        address.setDefaultAddress(request.getDefaultAddress());
+        return AddressResponse.from(address);
     }
 
     @Transactional
-    public void delete(Long uid, Long id) {
-        Address a = own(uid, id);
-        boolean d = a.isDefaultAddress();
-        repo.delete(a);
-        if (d) repo.findByUserIdOrderByDefaultAddressDescIdDesc(uid).stream().findFirst().ifPresent(x -> {
-            x.setDefaultAddress(true);
-        });
+    public void delete(Long userId, Long id) {
+        Address address = own(userId, id);
+        boolean wasDefault = Boolean.TRUE.equals(address.getDefaultAddress());
+        addressRepository.delete(address);
+
+        if (wasDefault) {
+            addressRepository.findByUserIdOrderByDefaultAddressDescIdDesc(userId)
+                    .stream()
+                    .findFirst()
+                    .ifPresent(a -> a.setDefaultAddress(true));
+        }
     }
 
     @Transactional
-    public AddressResponse setDefault(Long uid, Long id) {
-        Address a = own(uid, id);
-        clear(uid);
-        a.setDefaultAddress(true);
-        return AddressResponse.from(a);
+    public AddressResponse setDefault(Long userId, Long id) {
+        Address address = own(userId, id);
+        clearDefault(userId);
+        address.setDefaultAddress(true);
+        return AddressResponse.from(addressRepository.save(address));
     }
 
-    private User user(Long id) {
-        return users.findById(id).orElseThrow(() -> new UnauthorizedException("Account not found"));
+    private User getUser(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new com.thonha.backend.common.ApiException(
+                        com.thonha.backend.common.ErrorCode.USER_NOT_FOUND));
     }
 
-    private Address own(Long u, Long id) {
-        return repo.findByIdAndUserId(id, u).orElseThrow(() -> new NotFoundException("Address not found"));
+    private Address own(Long userId, Long id) {
+        return addressRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new com.thonha.backend.common.ApiException(
+                        com.thonha.backend.common.ErrorCode.NOT_FOUND,
+                        "Không tìm thấy địa chỉ"));
     }
 
-    private void clear(Long uid) {
-        repo.findByUserIdOrderByDefaultAddressDescIdDesc(uid).forEach(x -> x.setDefaultAddress(false));
+    private void clearDefault(Long userId) {
+        addressRepository.findByUserIdOrderByDefaultAddressDescIdDesc(userId)
+                .forEach(a -> a.setDefaultAddress(false));
     }
 
-    private void copy(Address a, AddressRequest r) {
-        a.setLabel(r.label() == null ? null : r.label().trim());
-        a.setFullAddress(r.fullAddress().trim());
-        a.setLat(r.lat());
-        a.setLng(r.lng());
+    private void copy(Address address, AddressRequest request) {
+        address.setLabel(request.getLabel() == null ? null : request.getLabel().trim());
+        address.setFullAddress(request.getFullAddress().trim());
+        address.setLat(request.getLat() != null ? BigDecimal.valueOf(request.getLat()) : null);
+        address.setLng(request.getLng() != null ? BigDecimal.valueOf(request.getLng()) : null);
     }
 }

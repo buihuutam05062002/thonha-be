@@ -1,11 +1,17 @@
 package com.thonha.backend.service;
 
-import com.thonha.backend.dto.admin.RejectWorkerRequest;
-import com.thonha.backend.dto.worker.WorkerProfileResponse;
+import com.thonha.backend.common.ApiException;
+import com.thonha.backend.common.ErrorCode;
+import com.thonha.backend.dto.request.RejectWorkerRequest;
+import com.thonha.backend.dto.request.WorkerProfileSearchRequest;
+import com.thonha.backend.dto.response.WorkerProfileResponse;
 import com.thonha.backend.entity.*;
-import com.thonha.backend.exception.*;
-import com.thonha.backend.repository.*;
-import org.springframework.data.domain.*;
+import com.thonha.backend.enums.ApprovalStatus;
+import com.thonha.backend.enums.DocumentType;
+import com.thonha.backend.repository.UserRepository;
+import com.thonha.backend.repository.WorkerProfileRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,56 +19,76 @@ import java.time.LocalDateTime;
 
 @Service
 public class WorkerApprovalService {
-    private final WorkerProfileRepository profiles;
-    private final UserRepository users;
+    private final WorkerProfileRepository workerProfileRepository;
+    private final UserRepository userRepository;
 
-    public WorkerApprovalService(WorkerProfileRepository p, UserRepository u) {
-        profiles = p;
-        users = u;
+    public WorkerApprovalService(WorkerProfileRepository workerProfileRepository, UserRepository userRepository) {
+        this.workerProfileRepository = workerProfileRepository;
+        this.userRepository = userRepository;
     }
 
-    @Transactional(readOnly = true)
-    public Page<WorkerProfileResponse> search(ApprovalStatus status, String keyword, String city, Pageable pageable) {
-        return profiles.search(status, blank(keyword), blank(city), pageable).map(WorkerProfileResponse::from);
+    public Page<WorkerProfileResponse> search(WorkerProfileSearchRequest request, Pageable pageable) {
+        return workerProfileRepository.search(request.getStatus(), blank(request.getKeyword()), blank(request.getCity()), pageable)
+                .map(WorkerProfileResponse::from);
     }
 
-    @Transactional(readOnly = true)
-    public WorkerProfileResponse detail(Long id) {
-        return WorkerProfileResponse.from(profiles.findWithDetailById(id).orElseThrow(() -> new NotFoundException("Worker profile not found")));
+    public WorkerProfileResponse getDetail(Long id) {
+        return workerProfileRepository.findWithDetailById(id)
+                .map(WorkerProfileResponse::from)
+                .orElseThrow(() -> new ApiException(ErrorCode.WORKER_NOT_FOUND));
     }
 
     @Transactional
     public WorkerProfileResponse approve(Long profileId, Long adminId) {
-        User admin = admin(adminId);
-        WorkerProfile p = profiles.findWithDetailById(profileId).orElseThrow(() -> new NotFoundException("Worker profile not found"));
-        if (p.getApprovalStatus() != ApprovalStatus.PENDING)
-            throw new BadRequestException("Worker profile is not pending");
-        boolean front = p.getDocuments().stream().anyMatch(d -> d.getType() == DocumentType.CCCD_FRONT), back = p.getDocuments().stream().anyMatch(d -> d.getType() == DocumentType.CCCD_BACK);
-        if (!front || !back) throw new BadRequestException("Worker profile must contain both CCCD images");
-        p.setApprovalStatus(ApprovalStatus.APPROVED);
-        p.setRejectReason(null);
-        p.setReviewedBy(admin);
-        p.setReviewedAt(LocalDateTime.now());
-        return WorkerProfileResponse.from(p);
+        User admin = getAdmin(adminId);
+        WorkerProfile profile = workerProfileRepository.findWithDetailById(profileId)
+                .orElseThrow(() -> new ApiException(ErrorCode.WORKER_NOT_FOUND));
+
+        if (profile.getApprovalStatus() != ApprovalStatus.PENDING) {
+            throw new ApiException(ErrorCode.INVALID_STATUS_TRANSITION, "Hồ sơ không ở trạng thái chờ duyệt");
+        }
+
+        boolean hasFront = profile.getDocuments().stream()
+                .anyMatch(d -> d.getType() == DocumentType.CCCD_FRONT);
+        boolean hasBack = profile.getDocuments().stream()
+                .anyMatch(d -> d.getType() == DocumentType.CCCD_BACK);
+        if (!hasFront || !hasBack) {
+            throw new ApiException(ErrorCode.MISSING_REQUIRED_DOCUMENTS, "Hồ sơ phải chứa cả hai ảnh CCCD");
+        }
+
+        profile.setApprovalStatus(ApprovalStatus.APPROVED);
+        profile.setRejectReason(null);
+        profile.setReviewedBy(admin);
+        profile.setReviewedAt(LocalDateTime.now());
+
+        return WorkerProfileResponse.from(workerProfileRepository.save(profile));
     }
 
     @Transactional
-    public WorkerProfileResponse reject(Long profileId, Long adminId, RejectWorkerRequest body) {
-        User admin = admin(adminId);
-        WorkerProfile p = profiles.findWithDetailById(profileId).orElseThrow(() -> new NotFoundException("Worker profile not found"));
-        if (p.getApprovalStatus() != ApprovalStatus.PENDING)
-            throw new BadRequestException("Worker profile is not pending");
-        p.setApprovalStatus(ApprovalStatus.REJECTED);
-        p.setRejectReason(body.reason().trim());
-        p.setReviewedBy(admin);
-        p.setReviewedAt(LocalDateTime.now());
-        return WorkerProfileResponse.from(p);
+    public WorkerProfileResponse reject(Long profileId, Long adminId, RejectWorkerRequest request) {
+        User admin = getAdmin(adminId);
+        WorkerProfile profile = workerProfileRepository.findWithDetailById(profileId)
+                .orElseThrow(() -> new ApiException(ErrorCode.WORKER_NOT_FOUND));
+
+        if (profile.getApprovalStatus() != ApprovalStatus.PENDING) {
+            throw new ApiException(ErrorCode.INVALID_STATUS_TRANSITION, "Hồ sơ không ở trạng thái chờ duyệt");
+        }
+
+        profile.setApprovalStatus(ApprovalStatus.REJECTED);
+        profile.setRejectReason(request.getReason().trim());
+        profile.setReviewedBy(admin);
+        profile.setReviewedAt(LocalDateTime.now());
+
+        return WorkerProfileResponse.from(workerProfileRepository.save(profile));
     }
 
-    private User admin(Long id) {
-        User u = users.findById(id).orElseThrow(() -> new UnauthorizedException("Admin not found"));
-        if (!u.hasRole(Role.ADMIN)) throw new UnauthorizedException("Admin role required");
-        return u;
+    private User getAdmin(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
+        if (!user.hasRole(Role.ADMIN)) {
+            throw new ApiException(ErrorCode.ADMIN_REQUIRED);
+        }
+        return user;
     }
 
     private String blank(String x) {

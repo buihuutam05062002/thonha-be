@@ -8,17 +8,28 @@ import lombok.*;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 public class RequestAttachment {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @EqualsAndHashCode.Include
+    private Long id;
+
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "request_id")
-    RepairRequest request;
+    @ToString.Exclude
+    private RepairRequest request;
+
     @Column(nullable = false, length = 20)
-    String type;
+    private String type;
+
     @Column(nullable = false, length = 500)
-    String url;
+    private String url;
+
     @Column(name = "sort_order", nullable = false)
-    int sortOrder;
+    private Integer sortOrder;
 }

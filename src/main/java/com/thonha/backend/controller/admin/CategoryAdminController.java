@@ -1,6 +1,7 @@
 package com.thonha.backend.controller.admin;
 
 import com.thonha.backend.entity.*;
+import com.thonha.backend.enums.CategoryStatus;
 import com.thonha.backend.repository.ServiceCategoryRepository;
 import org.springframework.web.bind.annotation.*;
 

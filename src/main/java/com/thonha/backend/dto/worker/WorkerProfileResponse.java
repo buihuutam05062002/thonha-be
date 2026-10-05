@@ -1,6 +1,10 @@
 package com.thonha.backend.dto.worker;
 
 import com.thonha.backend.entity.*;
+import com.thonha.backend.enums.ApprovalStatus;
+import com.thonha.backend.enums.AvailabilityStatus;
+import com.thonha.backend.enums.DocumentType;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;

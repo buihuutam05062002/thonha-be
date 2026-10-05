@@ -1,7 +1,7 @@
 package com.thonha.backend.controller.admin;
 
 import com.thonha.backend.dto.UserResponse;
-import com.thonha.backend.entity.UserStatus;
+import com.thonha.backend.enums.UserStatus;
 import com.thonha.backend.repository.UserRepository;
 import org.springframework.data.domain.*;
 import org.springframework.web.bind.annotation.*;

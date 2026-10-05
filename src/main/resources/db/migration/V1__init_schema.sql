@@ -16,39 +16,53 @@ FOREIGN_KEY_CHECKS = 0;
 -- ---------------------------------------------------------------------
 -- 1. Users & roles
 -- ---------------------------------------------------------------------
-CREATE TABLE USERS
+CREATE TABLE users
 (
     id           BIGINT       NOT NULL AUTO_INCREMENT,
     full_name    VARCHAR(255) NOT NULL,
-    `user`       VARCHAR(100) NULL,
+    username     VARCHAR(100) NULL,
     email        VARCHAR(255) NOT NULL,
     phone_number VARCHAR(20)  NOT NULL,
     password     VARCHAR(255) NOT NULL,
     status       ENUM('active','inactive','banned') NOT NULL DEFAULT 'active',
     avatar_url   VARCHAR(500) NULL,
     created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME     NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uk_users_email (email),
-    UNIQUE KEY uk_users_phone_number (phone_number)
+    UNIQUE KEY uk_users_phone_number (phone_number),
+    UNIQUE KEY uk_users_username (username)
 ) ENGINE=InnoDB;
 
-CREATE TABLE Role
+CREATE TABLE roles
 (
     id   INT         NOT NULL AUTO_INCREMENT,
     name VARCHAR(50) NOT NULL,
     PRIMARY KEY (id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE USER_ROLES
+CREATE TABLE user_roles
 (
     user_id BIGINT NOT NULL,
     role_id INT    NOT NULL,
     PRIMARY KEY (user_id, role_id),
-    CONSTRAINT fk_user_role_user FOREIGN KEY (user_id) REFERENCES USERS (id) ON DELETE CASCADE,
-    CONSTRAINT fk_user_role_role FOREIGN KEY (role_id) REFERENCES Role (id) ON DELETE CASCADE
+    CONSTRAINT fk_user_role_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_role_role FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE ADDRESS
+CREATE TABLE refresh_tokens
+(
+    id         BIGINT       NOT NULL AUTO_INCREMENT,
+    user_id    BIGINT       NOT NULL,
+    token_hash VARCHAR(64)  NOT NULL,
+    expires_at DATETIME     NOT NULL,
+    revoked_at DATETIME NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_refresh_token_hash (token_hash),
+    CONSTRAINT fk_refresh_token_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE address
 (
     id           BIGINT       NOT NULL AUTO_INCREMENT,
     user_id      BIGINT       NOT NULL,
@@ -58,13 +72,13 @@ CREATE TABLE ADDRESS
     lng          DECIMAL(10, 7) NULL,
     is_default   BOOLEAN      NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
-    CONSTRAINT fk_address_user FOREIGN KEY (user_id) REFERENCES USERS (id) ON DELETE CASCADE
+    CONSTRAINT fk_address_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
 -- 2. Reference tables
 -- ---------------------------------------------------------------------
-CREATE TABLE SERVICE_CATEGORY
+CREATE TABLE service_category
 (
     id            BIGINT       NOT NULL AUTO_INCREMENT,
     category_name VARCHAR(255) NOT NULL,
@@ -74,7 +88,7 @@ CREATE TABLE SERVICE_CATEGORY
     PRIMARY KEY (id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE PROMOTION
+CREATE TABLE promotion
 (
     id            BIGINT         NOT NULL AUTO_INCREMENT,
     promo_code    VARCHAR(50)    NOT NULL,
@@ -89,7 +103,7 @@ CREATE TABLE PROMOTION
     UNIQUE KEY uk_promotion_promo_code (promo_code)
 ) ENGINE=InnoDB;
 
-CREATE TABLE Bank_Account
+CREATE TABLE bank_account
 (
     id             INT          NOT NULL AUTO_INCREMENT,
     bank_name      VARCHAR(255) NOT NULL,
@@ -101,37 +115,39 @@ CREATE TABLE Bank_Account
 -- ---------------------------------------------------------------------
 -- 3. Workers
 -- ---------------------------------------------------------------------
-CREATE TABLE WORKER_PROFILE
+CREATE TABLE worker_profile
 (
     id                  BIGINT        NOT NULL AUTO_INCREMENT,
     user_id             BIGINT        NOT NULL,
     service_area        VARCHAR(255) NULL,
     approval_status     ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
     availability_status ENUM('online','offline','busy')       NOT NULL DEFAULT 'offline',
-    avg_rating          DECIMAL(3, 2) NOT NULL DEFAULT 0,
+    average_rating      DECIMAL(3, 2) NOT NULL DEFAULT 0,
     acceptance_rate     DECIMAL(5, 2) NOT NULL DEFAULT 0,
     active_job_count    INT           NOT NULL DEFAULT 0,
     residence_city      VARCHAR(255) NULL,
     years_of_experience INT NULL,
     bank_account_id     INT NULL,
+    reviewed_at         DATETIME NULL,
+    reviewed_by         BIGINT NULL,
+    reject_reason       VARCHAR(500) NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uk_worker_profile_user (user_id),
-    CONSTRAINT fk_worker_profile_user FOREIGN KEY (user_id) REFERENCES USERS (id),
-    CONSTRAINT fk_worker_profile_bank FOREIGN KEY (bank_account_id) REFERENCES Bank_Account (id)
+    CONSTRAINT fk_worker_profile_user FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_worker_profile_bank FOREIGN KEY (bank_account_id) REFERENCES bank_account (id),
+    CONSTRAINT fk_worker_profile_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users (id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE WORKER_SPECIALTY
+CREATE TABLE worker_specialty
 (
-    id                BIGINT NOT NULL AUTO_INCREMENT,
-    worker_profile_id BIGINT NOT NULL,
-    category_id       BIGINT NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_worker_specialty (worker_profile_id, category_id),
-    CONSTRAINT fk_specialty_profile FOREIGN KEY (worker_profile_id) REFERENCES WORKER_PROFILE (id) ON DELETE CASCADE,
-    CONSTRAINT fk_specialty_category FOREIGN KEY (category_id) REFERENCES SERVICE_CATEGORY (id)
+    worker_profile_id    BIGINT NOT NULL,
+    service_category_id  BIGINT NOT NULL,
+    PRIMARY KEY (worker_profile_id, service_category_id),
+    CONSTRAINT fk_specialty_profile FOREIGN KEY (worker_profile_id) REFERENCES worker_profile (id) ON DELETE CASCADE,
+    CONSTRAINT fk_specialty_category FOREIGN KEY (service_category_id) REFERENCES service_category (id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE WORKER_SCHEDULE
+CREATE TABLE worker_schedule
 (
     id                BIGINT NOT NULL AUTO_INCREMENT,
     worker_profile_id BIGINT NOT NULL,
@@ -142,23 +158,24 @@ CREATE TABLE WORKER_SCHEDULE
     end_time          TIME   NOT NULL,
     status            ENUM('available','off') NOT NULL DEFAULT 'available',
     PRIMARY KEY (id),
-    CONSTRAINT fk_schedule_profile FOREIGN KEY (worker_profile_id) REFERENCES WORKER_PROFILE (id) ON DELETE CASCADE
+    CONSTRAINT fk_schedule_profile FOREIGN KEY (worker_profile_id) REFERENCES worker_profile (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE WORKER_DOCUMENT
+CREATE TABLE worker_document
 (
     id                BIGINT       NOT NULL AUTO_INCREMENT,
     worker_profile_id BIGINT       NOT NULL,
     type              ENUM('id_card','certificate','other') NOT NULL,
     url               VARCHAR(500) NOT NULL,
+    created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_document_profile FOREIGN KEY (worker_profile_id) REFERENCES WORKER_PROFILE (id) ON DELETE CASCADE
+    CONSTRAINT fk_document_profile FOREIGN KEY (worker_profile_id) REFERENCES worker_profile (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
 -- 4. Wallet
 -- ---------------------------------------------------------------------
-CREATE TABLE WALLET
+CREATE TABLE wallet
 (
     id         BIGINT         NOT NULL AUTO_INCREMENT,
     worker_id  BIGINT         NOT NULL,
@@ -166,10 +183,10 @@ CREATE TABLE WALLET
     updated_at DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uk_wallet_worker (worker_id),
-    CONSTRAINT fk_wallet_worker FOREIGN KEY (worker_id) REFERENCES WORKER_PROFILE (id)
+    CONSTRAINT fk_wallet_worker FOREIGN KEY (worker_id) REFERENCES worker_profile (id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE WITHDRAWAL_REQUEST
+CREATE TABLE withdrawal_request
 (
     id           BIGINT         NOT NULL AUTO_INCREMENT,
     wallet_id    BIGINT         NOT NULL,
@@ -178,13 +195,13 @@ CREATE TABLE WITHDRAWAL_REQUEST
     created_at   DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     processed_at DATETIME NULL,
     PRIMARY KEY (id),
-    CONSTRAINT fk_withdrawal_wallet FOREIGN KEY (wallet_id) REFERENCES WALLET (id)
+    CONSTRAINT fk_withdrawal_wallet FOREIGN KEY (wallet_id) REFERENCES wallet (id)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
 -- 5. Repair requests
 -- ---------------------------------------------------------------------
-CREATE TABLE REPAIR_REQUEST
+CREATE TABLE repair_request
 (
     id                     BIGINT      NOT NULL AUTO_INCREMENT,
     request_code           VARCHAR(50) NOT NULL,
@@ -206,24 +223,24 @@ CREATE TABLE REPAIR_REQUEST
     ai_suggested_price_max DECIMAL(15, 2) NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uk_repair_request_code (request_code),
-    CONSTRAINT fk_request_customer FOREIGN KEY (customer_id) REFERENCES USERS (id),
-    CONSTRAINT fk_request_category FOREIGN KEY (category_id) REFERENCES SERVICE_CATEGORY (id),
-    CONSTRAINT fk_request_address FOREIGN KEY (address_id) REFERENCES ADDRESS (id) ON DELETE SET NULL,
-    CONSTRAINT fk_request_worker FOREIGN KEY (worker_id) REFERENCES WORKER_PROFILE (id) ON DELETE SET NULL
+    CONSTRAINT fk_request_customer FOREIGN KEY (customer_id) REFERENCES users (id),
+    CONSTRAINT fk_request_category FOREIGN KEY (category_id) REFERENCES service_category (id),
+    CONSTRAINT fk_request_address FOREIGN KEY (address_id) REFERENCES address (id) ON DELETE SET NULL,
+    CONSTRAINT fk_request_worker FOREIGN KEY (worker_id) REFERENCES worker_profile (id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
-CREATE TABLE REQUEST_ATTACHMENT
+CREATE TABLE request_attachment
 (
     id         BIGINT       NOT NULL AUTO_INCREMENT,
     request_id BIGINT       NOT NULL,
-    type       ENUM('image','video') NOT NULL,
+    type       VARCHAR(20) NOT NULL,
     url        VARCHAR(500) NOT NULL,
     sort_order INT          NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    CONSTRAINT fk_attachment_request FOREIGN KEY (request_id) REFERENCES REPAIR_REQUEST (id) ON DELETE CASCADE
+    CONSTRAINT fk_attachment_request FOREIGN KEY (request_id) REFERENCES repair_request (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE QUOTATION
+CREATE TABLE quotation
 (
     id           BIGINT         NOT NULL AUTO_INCREMENT,
     request_id   BIGINT         NOT NULL,
@@ -233,11 +250,11 @@ CREATE TABLE QUOTATION
     status       ENUM('pending','accepted','rejected') NOT NULL DEFAULT 'pending',
     created_at   DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_quotation_request FOREIGN KEY (request_id) REFERENCES REPAIR_REQUEST (id),
-    CONSTRAINT fk_quotation_worker FOREIGN KEY (worker_id) REFERENCES WORKER_PROFILE (id)
+    CONSTRAINT fk_quotation_request FOREIGN KEY (request_id) REFERENCES repair_request (id),
+    CONSTRAINT fk_quotation_worker FOREIGN KEY (worker_id) REFERENCES worker_profile (id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE MATCHING_LOG
+CREATE TABLE matching_log
 (
     id                    BIGINT NOT NULL AUTO_INCREMENT,
     request_id            BIGINT NOT NULL,
@@ -252,14 +269,14 @@ CREATE TABLE MATCHING_LOG
     response_time         DATETIME NULL,
     note                  TEXT NULL,
     PRIMARY KEY (id),
-    CONSTRAINT fk_matching_request FOREIGN KEY (request_id) REFERENCES REPAIR_REQUEST (id),
-    CONSTRAINT fk_matching_worker FOREIGN KEY (worker_id) REFERENCES WORKER_PROFILE (id)
+    CONSTRAINT fk_matching_request FOREIGN KEY (request_id) REFERENCES repair_request (id),
+    CONSTRAINT fk_matching_worker FOREIGN KEY (worker_id) REFERENCES worker_profile (id)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
 -- 6. Payments
 -- ---------------------------------------------------------------------
-CREATE TABLE `TRANSACTION`
+CREATE TABLE `transaction`
 (
     id                     BIGINT         NOT NULL AUTO_INCREMENT,
     request_id             BIGINT         NOT NULL,
@@ -273,14 +290,14 @@ CREATE TABLE `TRANSACTION`
     gateway_transaction_id VARCHAR(100) NULL,
     created_at             DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_transaction_request FOREIGN KEY (request_id) REFERENCES REPAIR_REQUEST (id),
-    CONSTRAINT fk_transaction_promotion FOREIGN KEY (promotion_id) REFERENCES PROMOTION (id) ON DELETE SET NULL
+    CONSTRAINT fk_transaction_request FOREIGN KEY (request_id) REFERENCES repair_request (id),
+    CONSTRAINT fk_transaction_promotion FOREIGN KEY (promotion_id) REFERENCES promotion (id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
 -- 7. Reviews & complaints
 -- ---------------------------------------------------------------------
-CREATE TABLE REVIEW
+CREATE TABLE review
 (
     id          BIGINT   NOT NULL AUTO_INCREMENT,
     request_id  BIGINT   NOT NULL,
@@ -291,12 +308,12 @@ CREATE TABLE REVIEW
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     CONSTRAINT chk_review_star_rating CHECK (star_rating BETWEEN 1 AND 5),
-    CONSTRAINT fk_review_request FOREIGN KEY (request_id) REFERENCES REPAIR_REQUEST (id),
-    CONSTRAINT fk_review_customer FOREIGN KEY (customer_id) REFERENCES USERS (id),
-    CONSTRAINT fk_review_worker FOREIGN KEY (worker_id) REFERENCES WORKER_PROFILE (id)
+    CONSTRAINT fk_review_request FOREIGN KEY (request_id) REFERENCES repair_request (id),
+    CONSTRAINT fk_review_customer FOREIGN KEY (customer_id) REFERENCES users (id),
+    CONSTRAINT fk_review_worker FOREIGN KEY (worker_id) REFERENCES worker_profile (id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE COMPLAINT
+CREATE TABLE complaint
 (
     id                BIGINT   NOT NULL AUTO_INCREMENT,
     request_id        BIGINT   NOT NULL,
@@ -307,23 +324,23 @@ CREATE TABLE COMPLAINT
     resolution        TEXT NULL,
     created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_complaint_request FOREIGN KEY (request_id) REFERENCES REPAIR_REQUEST (id),
-    CONSTRAINT fk_complaint_admin FOREIGN KEY (handling_admin_id) REFERENCES USERS (id) ON DELETE SET NULL
+    CONSTRAINT fk_complaint_request FOREIGN KEY (request_id) REFERENCES repair_request (id),
+    CONSTRAINT fk_complaint_admin FOREIGN KEY (handling_admin_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
-CREATE TABLE COMPLAINT_IMAGE
+CREATE TABLE complaint_image
 (
     id           BIGINT       NOT NULL AUTO_INCREMENT,
     complaint_id BIGINT       NOT NULL,
     url          VARCHAR(500) NOT NULL,
     PRIMARY KEY (id),
-    CONSTRAINT fk_complaint_image_complaint FOREIGN KEY (complaint_id) REFERENCES COMPLAINT (id) ON DELETE CASCADE
+    CONSTRAINT fk_complaint_image_complaint FOREIGN KEY (complaint_id) REFERENCES complaint (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
 -- 8. Messaging & notifications
 -- ---------------------------------------------------------------------
-CREATE TABLE MESSAGE
+CREATE TABLE message
 (
     id         BIGINT   NOT NULL AUTO_INCREMENT,
     request_id BIGINT   NOT NULL,
@@ -332,20 +349,20 @@ CREATE TABLE MESSAGE
     is_seen    BOOLEAN  NOT NULL DEFAULT FALSE,
     sent_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_message_request FOREIGN KEY (request_id) REFERENCES REPAIR_REQUEST (id) ON DELETE CASCADE,
-    CONSTRAINT fk_message_sender FOREIGN KEY (sender_id) REFERENCES USERS (id)
+    CONSTRAINT fk_message_request FOREIGN KEY (request_id) REFERENCES repair_request (id) ON DELETE CASCADE,
+    CONSTRAINT fk_message_sender FOREIGN KEY (sender_id) REFERENCES users (id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE MESSAGE_IMAGE
+CREATE TABLE message_image
 (
     id         BIGINT       NOT NULL AUTO_INCREMENT,
     message_id BIGINT       NOT NULL,
     url        VARCHAR(500) NOT NULL,
     PRIMARY KEY (id),
-    CONSTRAINT fk_message_image_message FOREIGN KEY (message_id) REFERENCES MESSAGE (id) ON DELETE CASCADE
+    CONSTRAINT fk_message_image_message FOREIGN KEY (message_id) REFERENCES message (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE NOTIFICATION
+CREATE TABLE notification
 (
     id         BIGINT       NOT NULL AUTO_INCREMENT,
     user_id    BIGINT       NOT NULL,
@@ -354,7 +371,7 @@ CREATE TABLE NOTIFICATION
     is_read    BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES USERS (id) ON DELETE CASCADE
+    CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 SET

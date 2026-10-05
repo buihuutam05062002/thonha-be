@@ -1,7 +1,11 @@
 package com.thonha.backend.entity;
 
+import com.thonha.backend.enums.PriorityLevel;
+import com.thonha.backend.enums.RepairStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -12,60 +16,75 @@ import java.util.*;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 public class RepairRequest {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @EqualsAndHashCode.Include
+    private Long id;
+
     @Column(name = "request_code", nullable = false, unique = true, length = 50)
-    String requestCode;
+    private String requestCode;
+
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
-    User customer;
+    @ToString.Exclude
+    private User customer;
+
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
-    ServiceCategory category;
+    @ToString.Exclude
+    private ServiceCategory category;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "address_id")
-    Address address;
+    @ToString.Exclude
+    private Address address;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "worker_id")
-    WorkerProfile worker;
+    @ToString.Exclude
+    private WorkerProfile worker;
+
     @Column(nullable = false, columnDefinition = "text")
-    String description;
+    private String description;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "priority_level", nullable = false, length = 20)
-    PriorityLevel priorityLevel = PriorityLevel.NORMAL;
+    @Builder.Default
+    private PriorityLevel priorityLevel = PriorityLevel.MEDIUM;
+
     @Column(name = "address_text", length = 500)
-    String addressText;
+    private String addressText;
+
     @Column(precision = 10, scale = 7)
-    BigDecimal lat;
+    private BigDecimal lat;
+
     @Column(precision = 10, scale = 7)
-    BigDecimal lng;
+    private BigDecimal lng;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    RepairStatus status = RepairStatus.PENDING;
+    @Builder.Default
+    private RepairStatus status = RepairStatus.PENDING_MATCH;
+
     @Column(name = "final_price", precision = 15, scale = 2)
-    BigDecimal finalPrice;
-    @Column(name = "created_at", nullable = false)
-    LocalDateTime createdAt;
-    @Column(name = "updated_at", nullable = false)
-    LocalDateTime updatedAt;
+    private BigDecimal finalPrice;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
-    List<RequestAttachment> attachments = new ArrayList<>();
-
-    @PrePersist
-    void pre() {
-        var n = LocalDateTime.now();
-        createdAt = n;
-        updatedAt = n;
-    }
-
-    @PreUpdate
-    void upd() {
-        updatedAt = LocalDateTime.now();
-    }
-
-    public enum PriorityLevel {NORMAL, URGENT}
-
-    public enum RepairStatus {PENDING, MATCHING, ASSIGNED, ON_THE_WAY, IN_PROGRESS, COMPLETED, CANCELLED}
+    @Builder.Default
+    @ToString.Exclude
+    private List<RequestAttachment> attachments = new ArrayList<>();
 }

@@ -1,42 +1,62 @@
 package com.thonha.backend.controller.admin;
 
-import com.thonha.backend.dto.admin.*;
-import com.thonha.backend.dto.worker.WorkerProfileResponse;
-import com.thonha.backend.entity.ApprovalStatus;
+import com.thonha.backend.common.ApiResponse;
+import com.thonha.backend.dto.request.RejectWorkerRequest;
+import com.thonha.backend.dto.request.WorkerProfileSearchRequest;
+import com.thonha.backend.dto.response.WorkerProfileResponse;
 import com.thonha.backend.security.CurrentUserProvider;
 import com.thonha.backend.service.WorkerApprovalService;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/admin/worker-profiles")
 public class WorkerApprovalController {
-    private final WorkerApprovalService s;
-    private final CurrentUserProvider c;
 
-    public WorkerApprovalController(WorkerApprovalService s, CurrentUserProvider c) {
-        this.s = s;
-        this.c = c;
+    private final WorkerApprovalService workerApprovalService;
+    private final CurrentUserProvider currentUserProvider;
+
+    public WorkerApprovalController(WorkerApprovalService workerApprovalService, CurrentUserProvider currentUserProvider) {
+        this.workerApprovalService = workerApprovalService;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @GetMapping
-    Page<WorkerProfileResponse> list(@RequestParam(required = false) ApprovalStatus status, @RequestParam(required = false) String keyword, @RequestParam(required = false) String city, Pageable pageable) {
-        return s.search(status, keyword, city, pageable);
+    public com.thonha.backend.common.ApiResponse<org.springframework.data.domain.Page<WorkerProfileResponse>> search(
+            WorkerProfileSearchRequest request, Pageable pageable) {
+        return com.thonha.backend.common.ApiResponse.success(
+                workerApprovalService.search(request, pageable)
+        );
     }
 
     @GetMapping("/{id}")
-    WorkerProfileResponse detail(@PathVariable Long id) {
-        return s.detail(id);
+    public com.thonha.backend.common.ApiResponse<WorkerProfileResponse> getDetail(@PathVariable Long id) {
+        return com.thonha.backend.common.ApiResponse.success(workerApprovalService.getDetail(id));
     }
 
     @PatchMapping("/{id}/approve")
-    WorkerProfileResponse approve(@PathVariable Long id) {
-        return s.approve(id, c.requireUserId());
+    public com.thonha.backend.common.ApiResponse<WorkerProfileResponse> approve(@PathVariable Long id) {
+        Long adminId = requireAdminId();
+        return com.thonha.backend.common.ApiResponse.success(
+                workerApprovalService.approve(id, adminId), "Duyệt hồ sơ thợ thành công"
+        );
     }
 
     @PatchMapping("/{id}/reject")
-    WorkerProfileResponse reject(@PathVariable Long id, @Valid @RequestBody RejectWorkerRequest body) {
-        return s.reject(id, c.requireUserId(), body);
+    public com.thonha.backend.common.ApiResponse<WorkerProfileResponse> reject(
+            @PathVariable Long id,
+            @Valid @RequestBody RejectWorkerRequest request) {
+        Long adminId = requireAdminId();
+        return com.thonha.backend.common.ApiResponse.success(
+                workerApprovalService.reject(id, adminId, request),
+                "Từ chối hồ sơ thợ thành công"
+        );
+    }
+
+    private Long requireAdminId() {
+        Long userId = currentUserProvider.requireUserId();
+        return userId;
     }
 }

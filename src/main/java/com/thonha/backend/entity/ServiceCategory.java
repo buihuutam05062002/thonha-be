@@ -1,5 +1,6 @@
 package com.thonha.backend.entity;
 
+import com.thonha.backend.enums.CategoryStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -8,17 +9,28 @@ import lombok.*;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 public class ServiceCategory {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
-    @Column(nullable = false, unique = true, length = 100)
-    String name;
+    @EqualsAndHashCode.Include
+    private Long id;
+
+    @Column(name = "category_name", nullable = false, unique = true, length = 100)
+    private String name;
+
     @Column(length = 500)
-    String description;
+    private String description;
+
     @Column(length = 255)
-    String icon;
+    private String icon;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    CategoryStatus status = CategoryStatus.ACTIVE;
+    @Builder.Default
+    private CategoryStatus status = CategoryStatus.ACTIVE;
 }
