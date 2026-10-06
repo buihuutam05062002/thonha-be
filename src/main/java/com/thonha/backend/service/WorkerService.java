@@ -96,12 +96,14 @@ public class WorkerService {
         return WorkerProfileResponse.from(workerProfileRepository.save(profile));
     }
 
+    @Transactional(readOnly = true)
     public WorkerProfileResponse getProfile(Long userId) {
         return workerProfileRepository.findByUserId(userId)
                 .map(WorkerProfileResponse::from)
                 .orElseThrow(() -> new ApiException(ErrorCode.WORKER_NOT_FOUND));
     }
 
+    @Transactional
     public WorkerProfileResponse updateAvailability(Long userId, AvailabilityRequest request) {
         WorkerProfile profile = workerProfileRepository.findByUserId(userId)
                 .orElseThrow(() -> new ApiException(ErrorCode.WORKER_NOT_FOUND));

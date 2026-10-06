@@ -16,12 +16,28 @@ public interface WorkerProfileRepository extends JpaRepository<WorkerProfile, Lo
 
     boolean existsByUserId(Long userId);
 
-    @EntityGraph(attributePaths = {"user", "documents", "specialties", "specialties.serviceCategory", "reviewedBy"})
+    // KHÔNG đưa "documents" và "specialties" (2 bag) vào EntityGraph: gây MultipleBagFetchException
+    // và làm Hibernate phân trang trong bộ nhớ. Hai collection này được nạp theo lô (@BatchSize).
+    @EntityGraph(attributePaths = {"user", "reviewedBy", "bankAccount"})
     Optional<WorkerProfile> findWithDetailById(Long id);
 
-    @EntityGraph(attributePaths = {"user", "documents", "specialties", "specialties.serviceCategory", "reviewedBy"})
-    @Query("select w from WorkerProfile w join w.user u where (:status is null or w.approvalStatus=:status) and (:keyword is null or lower(u.fullName) like lower(concat('%',:keyword,'%')) or lower(u.email) like lower(concat('%',:keyword,'%'))) and (:city is null or lower(w.provinceCity) like lower(concat('%',:city,'%')))")
-    Page<WorkerProfile> search(@Param("status") ApprovalStatus status, @Param("keyword") String keyword, @Param("city") String city, Pageable pageable);
+    @EntityGraph(attributePaths = {"user", "reviewedBy"})
+    @Query(value = "select w from WorkerProfile w join w.user u " +
+            "where (:status is null or w.approvalStatus = :status) " +
+            "and (:keyword is null or lower(u.fullName) like lower(concat('%', :keyword, '%')) " +
+            "     or lower(u.email) like lower(concat('%', :keyword, '%')) " +
+            "     or u.phoneNumber like concat('%', :keyword, '%')) " +
+            "and (:city is null or lower(w.provinceCity) like lower(concat('%', :city, '%')))",
+            countQuery = "select count(w) from WorkerProfile w join w.user u " +
+            "where (:status is null or w.approvalStatus = :status) " +
+            "and (:keyword is null or lower(u.fullName) like lower(concat('%', :keyword, '%')) " +
+            "     or lower(u.email) like lower(concat('%', :keyword, '%')) " +
+            "     or u.phoneNumber like concat('%', :keyword, '%')) " +
+            "and (:city is null or lower(w.provinceCity) like lower(concat('%', :city, '%')))")
+    Page<WorkerProfile> search(@Param("status") ApprovalStatus status, @Param("keyword") String keyword,
+                               @Param("city") String city, Pageable pageable);
+
+    long countByApprovalStatus(ApprovalStatus status);
 
     // Tìm thợ khả dụng để matching
     @Query("select w from WorkerProfile w " +

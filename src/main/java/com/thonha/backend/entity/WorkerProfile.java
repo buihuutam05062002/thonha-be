@@ -6,6 +6,8 @@ import com.thonha.backend.enums.AvailabilityStatus;
 import com.thonha.backend.enums.DocumentType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -64,6 +66,11 @@ public class WorkerProfile {
     @Builder.Default
     private Integer ongoingJobsCount = 0;
 
+    // Thời điểm nộp hồ sơ (nullable để tương thích với các hồ sơ cũ chưa có dữ liệu)
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
     @Column(name = "reviewed_at")
     private LocalDateTime reviewedAt;
 
@@ -82,12 +89,17 @@ public class WorkerProfile {
 
     // Dùng List thay vì Set: entity mới chưa có id nên Lombok equals coi tất cả là bằng nhau,
     // HashSet sẽ làm mất phần tử (ví dụ CCCD mặt trước và mặt sau)
+    // Hibernate không cho JOIN FETCH 2 bag cùng lúc (MultipleBagFetchException),
+    // nên các collection này để LAZY và nạp theo lô bằng @BatchSize
     @OneToMany(mappedBy = "workerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
+    @OrderBy("id ASC")
     @Builder.Default
     @ToString.Exclude
     private List<WorkerDocument> documents = new ArrayList<>();
 
     @OneToMany(mappedBy = "workerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     @Builder.Default
     @ToString.Exclude
     private List<WorkerSpecialty> specialties = new ArrayList<>();

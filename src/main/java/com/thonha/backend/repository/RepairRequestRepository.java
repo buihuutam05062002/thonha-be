@@ -34,4 +34,13 @@ public interface RepairRequestRepository extends JpaRepository<RepairRequest, Lo
 
     @Query("select r from RepairRequest r where r.status = :status")
     Page<RepairRequest> findByStatus(RepairStatus status, Pageable pageable);
+
+    @Query("select r from RepairRequest r join fetch r.category join fetch r.customer " +
+            "where r.worker.id = :workerId order by r.createdAt desc")
+    List<RepairRequest> findRecentByWorker(@Param("workerId") Long workerId, Pageable pageable);
+
+    @Query("select r from RepairRequest r where r.worker.id = :workerId and r.status = :status and r.updatedAt >= :since")
+    List<RepairRequest> findByWorkerAndStatusSince(@Param("workerId") Long workerId,
+                                                   @Param("status") RepairStatus status,
+                                                   @Param("since") java.time.LocalDateTime since);
 }

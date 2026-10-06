@@ -41,7 +41,7 @@ public class MatchingService {
     private static final BigDecimal WEIGHT_WORKLOAD = new BigDecimal("0.15");      // 15% - tải việc
 
     // Cấu hình timeout
-    private static final int MATCHING_TIMEOUT_MINUTES = 5;
+    public static final int MATCHING_TIMEOUT_MINUTES = 5;
     private static final int MAX_WORKERS_PER_REQUEST = 5;
     private static final int MAX_DISTANCE_KM = 20;
 
@@ -293,6 +293,8 @@ public class MatchingService {
                         logItem.setResult(MatchingResult.CANCELLED_MIDWAY);
                         logItem.setRespondedAt(LocalDateTime.now());
                         logItem.setNote("Thợ khác đã chấp nhận");
+                        // báo cho các thợ còn lại: yêu cầu này đã có người nhận -> dashboard của họ tự làm mới
+                        notificationService.sendMatchingClosed(logItem.getWorker().getUser().getId(), request.getId());
                     });
             matchingLogRepository.saveAll(matchingLogRepository.findByRequestIdAndResultList(request.getId(), MatchingResult.PENDING));
             
@@ -357,6 +359,7 @@ public class MatchingService {
         log.setRespondedAt(LocalDateTime.now());
         log.setNote("Thợ không phản hồi trong thời gian chờ");
         matchingLogRepository.save(log);
+        notificationService.sendMatchingClosed(log.getWorker().getUser().getId(), log.getRequest().getId());
 
         // Tìm thợ tiếp theo
         findNextWorker(log.getRequest());

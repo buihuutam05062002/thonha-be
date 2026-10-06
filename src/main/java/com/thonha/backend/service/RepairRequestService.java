@@ -30,6 +30,7 @@ public class RepairRequestService {
     private final MatchingService matchingService;
     private final NotificationService notificationService;
     private final WorkerProfileRepository workerProfileRepository;
+    private final MatchingLogRepository matchingLogRepository;
 
     public RepairRequestService(RepairRequestRepository repairRequestRepository,
                                 UserRepository userRepository,
@@ -38,7 +39,8 @@ public class RepairRequestService {
                                 CloudinaryService cloudinaryService,
                                 MatchingService matchingService,
                                 NotificationService notificationService,
-                                WorkerProfileRepository workerProfileRepository) {
+                                WorkerProfileRepository workerProfileRepository,
+                                MatchingLogRepository matchingLogRepository) {
         this.repairRequestRepository = repairRequestRepository;
         this.userRepository = userRepository;
         this.serviceCategoryRepository = serviceCategoryRepository;
@@ -47,6 +49,7 @@ public class RepairRequestService {
         this.matchingService = matchingService;
         this.notificationService = notificationService;
         this.workerProfileRepository = workerProfileRepository;
+        this.matchingLogRepository = matchingLogRepository;
     }
 
     @Transactional
@@ -83,6 +86,8 @@ public class RepairRequestService {
         requestEntity.setLat(request.getLat() != null ? BigDecimal.valueOf(request.getLat()) : null);
         requestEntity.setLng(request.getLng() != null ? BigDecimal.valueOf(request.getLng()) : null);
         requestEntity.setStatus(RepairStatus.PENDING_MATCH);
+        // request_code là NOT NULL + UNIQUE nhưng mã thật (VT-xxxx) cần id sau khi insert -> gán mã tạm duy nhất trước
+        requestEntity.setRequestCode("TMP-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20));
 
         RepairRequest saved = repairRequestRepository.saveAndFlush(requestEntity);
         saved.setRequestCode(String.format("VT-%04d", saved.getId()));
@@ -154,8 +159,12 @@ public class RepairRequestService {
         repairRequestRepository.save(request);
 
         if (request.getWorker() != null) {
-            notificationService.sendWorkerRejected(userId, request.getId(), request.getWorker().getUser().getFullName());
+            // thợ đã nhận đơn -> báo cho THỢ biết khách hủy (trước đây gửi nhầm về chính khách)
+            notificationService.sendRequestCancelled(request.getWorker().getUser().getId(), request.getId());
         }
+        // các thợ đang được mời nhưng chưa phản hồi -> bỏ yêu cầu khỏi dashboard của họ
+        matchingLogRepository.findByRequestIdAndResultList(request.getId(), com.thonha.backend.enums.MatchingResult.PENDING)
+                .forEach(l -> notificationService.sendMatchingClosed(l.getWorker().getUser().getId(), request.getId()));
 
         return ApiResponse.success(RepairRequestResponse.from(request), "Hủy yêu cầu thành công");
     }

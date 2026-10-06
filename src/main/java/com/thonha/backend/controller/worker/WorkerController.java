@@ -4,6 +4,8 @@ import com.thonha.backend.common.ApiResponse;
 import com.thonha.backend.dto.request.AvailabilityRequest;
 import com.thonha.backend.dto.request.RegisterWorkerProfileRequest;
 import com.thonha.backend.dto.response.WorkerProfileResponse;
+import com.thonha.backend.dto.worker.WorkerDashboardResponse;
+import com.thonha.backend.service.WorkerDashboardService;
 import com.thonha.backend.security.CurrentUserProvider;
 import com.thonha.backend.service.WorkerService;
 import jakarta.validation.Valid;
@@ -21,10 +23,13 @@ import java.util.List;
 public class WorkerController {
 
     private final WorkerService workerService;
+    private final WorkerDashboardService workerDashboardService;
     private final CurrentUserProvider currentUserProvider;
 
-    public WorkerController(WorkerService workerService, CurrentUserProvider currentUserProvider) {
+    public WorkerController(WorkerService workerService, WorkerDashboardService workerDashboardService,
+                            CurrentUserProvider currentUserProvider) {
         this.workerService = workerService;
+        this.workerDashboardService = workerDashboardService;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -45,6 +50,13 @@ public class WorkerController {
         Long userId = currentUserProvider.requireUserId();
         WorkerProfileResponse response = workerService.getProfile(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PreAuthorize("hasRole('WORKER')")
+    @GetMapping("/dashboard")
+    public ResponseEntity<ApiResponse<WorkerDashboardResponse>> getDashboard() {
+        Long userId = currentUserProvider.requireUserId();
+        return ResponseEntity.ok(ApiResponse.success(workerDashboardService.getDashboard(userId)));
     }
 
     @PreAuthorize("hasRole('WORKER')")

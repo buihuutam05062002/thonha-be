@@ -38,4 +38,11 @@ public interface MatchingLogRepository extends JpaRepository<MatchingLog, Long> 
 
     @Query("select m from MatchingLog m where m.result = :result and m.sentAt < :dateTime")
     List<MatchingLog> findByResultAndSentAtBefore(MatchingResult result, LocalDateTime dateTime);
+
+    // Yêu cầu đang chờ thợ phản hồi (chưa quá hạn)
+    @Query("select m from MatchingLog m join fetch m.request r join fetch r.category join fetch r.customer " +
+            "where m.worker.id = :workerId and m.result = :result and m.sentAt >= :since order by m.sentAt desc")
+    List<MatchingLog> findPendingForWorker(@Param("workerId") Long workerId,
+                                           @Param("result") MatchingResult result,
+                                           @Param("since") LocalDateTime since);
 }
