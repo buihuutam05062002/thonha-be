@@ -1,18 +1,28 @@
 package com.thonha.backend.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class NotificationService {
 
-    private final SimpMessagingTemplate messagingTemplate;
+    private SimpMessagingTemplate messagingTemplate;
+
+    public NotificationService() {}
+
+    @Autowired(required = false)
+    public void setMessagingTemplate(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
 
     public void sendMatchingRequest(Long workerUserId, Long requestId, Long matchingLogId) {
+        if (messagingTemplate == null) {
+            log.debug("WebSocket not enabled, skipping sendMatchingRequest to user {}", workerUserId);
+            return;
+        }
         String destination = "/topic/user/" + workerUserId + "/matching";
         MatchingNotification notification = MatchingNotification.builder()
                 .type("MATCHING_REQUEST")
@@ -28,6 +38,10 @@ public class NotificationService {
     }
 
     public void sendWorkerAccepted(Long customerUserId, Long requestId, String workerName) {
+        if (messagingTemplate == null) {
+            log.debug("WebSocket not enabled, skipping sendWorkerAccepted to user {}", customerUserId);
+            return;
+        }
         String destination = "/topic/user/" + customerUserId + "/requests";
         MatchingNotification notification = MatchingNotification.builder()
                 .type("WORKER_ACCEPTED")
@@ -40,6 +54,10 @@ public class NotificationService {
     }
 
     public void sendWorkerRejected(Long customerUserId, Long requestId, String workerName) {
+        if (messagingTemplate == null) {
+            log.debug("WebSocket not enabled, skipping sendWorkerRejected to user {}", customerUserId);
+            return;
+        }
         String destination = "/topic/user/" + customerUserId + "/requests";
         MatchingNotification notification = MatchingNotification.builder()
                 .type("WORKER_REJECTED")
@@ -52,6 +70,10 @@ public class NotificationService {
     }
 
     public void sendNoWorkerFound(Long customerUserId, Long requestId) {
+        if (messagingTemplate == null) {
+            log.debug("WebSocket not enabled, skipping sendNoWorkerFound to user {}", customerUserId);
+            return;
+        }
         String destination = "/topic/user/" + customerUserId + "/requests";
         MatchingNotification notification = MatchingNotification.builder()
                 .type("NO_WORKER_FOUND")
@@ -64,6 +86,10 @@ public class NotificationService {
     }
 
     public void sendWorkerArrived(Long customerUserId, Long requestId) {
+        if (messagingTemplate == null) {
+            log.debug("WebSocket not enabled, skipping sendWorkerArrived to user {}", customerUserId);
+            return;
+        }
         String destination = "/topic/user/" + customerUserId + "/requests";
         MatchingNotification notification = MatchingNotification.builder()
                 .type("WORKER_ARRIVED")

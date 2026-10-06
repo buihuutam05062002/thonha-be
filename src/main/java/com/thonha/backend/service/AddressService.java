@@ -83,14 +83,14 @@ public class AddressService {
 
     private User getUser(Long id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new com.thonha.backend.common.ApiException(
-                        com.thonha.backend.common.ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(
+                        ErrorCode.USER_NOT_FOUND));
     }
 
     private Address own(Long userId, Long id) {
         return addressRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new com.thonha.backend.common.ApiException(
-                        com.thonha.backend.common.ErrorCode.NOT_FOUND,
+                        ErrorCode.NOT_FOUND,
                         "Không tìm thấy địa chỉ"));
     }
 

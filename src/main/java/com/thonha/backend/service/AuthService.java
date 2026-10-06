@@ -1,5 +1,8 @@
 package com.thonha.backend.service;
 
+
+import com.thonha.backend.common.ApiException;
+import  com.thonha.backend.common.ErrorCode;
 import com.thonha.backend.dto.request.LoginRequest;
 import com.thonha.backend.dto.request.RefreshRequest;
 import com.thonha.backend.dto.request.RegisterRequest;
@@ -54,16 +57,16 @@ public class AuthService {
         String phone = blank(request.getPhoneNumber());
 
         if (email == null && phone == null) {
-            throw new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.INVALID_REQUEST, "Email hoặc số điện thoại là bắt buộc");
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "Email hoặc số điện thoại là bắt buộc");
         }
         if (email != null && userRepository.existsByEmailIgnoreCase(email)) {
-            throw new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.EMAIL_EXISTS, "Email đã được sử dụng");
+            throw new ApiException(ErrorCode.EMAIL_EXISTS, "Email đã được sử dụng");
         }
         if (phone != null && userRepository.existsByPhoneNumber(phone)) {
-            throw new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.PHONE_EXISTS, "Số điện thoại đã được sử dụng");
+            throw new ApiException(ErrorCode.PHONE_EXISTS, "Số điện thoại đã được sử dụng");
         }
         if (request.getUsername() != null && userRepository.existsByUsername(request.getUsername())) {
-            throw new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.USERNAME_EXISTS, "Tên đăng nhập đã được sử dụng");
+            throw new ApiException(ErrorCode.USERNAME_EXISTS, "Tên đăng nhập đã được sử dụng");
         }
 
         User user = new User();
@@ -87,13 +90,13 @@ public class AuthService {
                 : userRepository.findByPhoneNumber(account).orElse(null);
 
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.INVALID_CREDENTIALS_LOGIN);
+            throw new ApiException(ErrorCode.INVALID_CREDENTIALS_LOGIN);
         }
         if (user.getStatus() != UserStatus.ACTIVE) {
             if (user.getStatus() == UserStatus.LOCKED) {
-                throw new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.ACCOUNT_LOCKED);
+                throw new ApiException(ErrorCode.ACCOUNT_LOCKED);
             }
-            throw new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.ACCOUNT_INACTIVE);
+            throw new ApiException(ErrorCode.ACCOUNT_INACTIVE);
         }
 
         return issueTokens(user);
@@ -103,15 +106,15 @@ public class AuthService {
     public AuthResponse refresh(RefreshRequest request) {
         String tokenHash = hash(request.getRefreshToken());
         RefreshToken refreshTokenEntity = refreshTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(() -> new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.REFRESH_TOKEN_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(ErrorCode.REFRESH_TOKEN_NOT_FOUND));
 
         if (refreshTokenEntity.getRevokedAt() != null || refreshTokenEntity.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.REFRESH_TOKEN_EXPIRED);
+            throw new ApiException(ErrorCode.REFRESH_TOKEN_EXPIRED);
         }
 
         User user = refreshTokenEntity.getUser();
         if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.ACCOUNT_INACTIVE);
+            throw new ApiException(ErrorCode.ACCOUNT_INACTIVE);
         }
 
         refreshTokenEntity.setRevokedAt(LocalDateTime.now());
@@ -129,14 +132,14 @@ public class AuthService {
 
     public UserResponse getMe(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new ApiException( ErrorCode.USER_NOT_FOUND));
         return UserResponse.from(user);
     }
 
     @Transactional
     public UserResponse updateProfile(Long userId, String fullName, String avatarUrl) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new com.thonha.backend.common.ApiException(com.thonha.backend.common.ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new ApiException( ErrorCode.USER_NOT_FOUND));
 
         user.setFullName(fullName.trim());
         user.setAvatarUrl(blank(avatarUrl));
