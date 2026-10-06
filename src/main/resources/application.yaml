@@ -23,6 +23,14 @@ app:
     access-minutes: ${JWT_ACCESS_MINUTES:30}
     refresh-days: ${JWT_REFRESH_DAYS:7}
 
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-flash-latest}
+    fallback-models: ${GEMINI_FALLBACK_MODELS:}   # ví dụ: gemini-flash-lite-latest (tên các model cách nhau bằng dấu phẩy)
+    base-url: https://generativelanguage.googleapis.com/v1beta
+    timeout-seconds: 15
+    min-confidence: 0.5
+
   otp:
     ttl-minutes: ${OTP_TTL_MINUTES:5}
     max-attempts: ${OTP_MAX_ATTEMPTS:5}
