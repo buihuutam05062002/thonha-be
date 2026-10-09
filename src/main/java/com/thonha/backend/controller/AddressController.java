@@ -1,48 +1,49 @@
 package com.thonha.backend.controller;
 
-import com.thonha.backend.dto.address.*;
+import com.thonha.backend.dto.request.AddressRequest;
+import com.thonha.backend.dto.response.AddressResponse;
 import com.thonha.backend.security.CurrentUserProvider;
 import com.thonha.backend.service.AddressService;
 import jakarta.validation.Valid;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/addresses")
 public class AddressController {
-    private final AddressService s;
-    private final CurrentUserProvider c;
+    private final AddressService addressService;
+    private final CurrentUserProvider currentUserProvider;
 
-    public AddressController(AddressService s, CurrentUserProvider c) {
-        this.s = s;
-        this.c = c;
+    public AddressController(AddressService addressService, CurrentUserProvider currentUserProvider) {
+        this.addressService = addressService;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @GetMapping
-    List<AddressResponse> list() {
-        return s.list(c.requireUserId());
+    public ResponseEntity<com.thonha.backend.common.ApiResponse<List<AddressResponse>>> list() {
+        return ResponseEntity.ok(com.thonha.backend.common.ApiResponse.success(addressService.list(currentUserProvider.requireUserId())));
     }
 
     @PostMapping
-    ResponseEntity<AddressResponse> create(@Valid @RequestBody AddressRequest r) {
-        return ResponseEntity.status(201).body(s.create(c.requireUserId(), r));
+    public ResponseEntity<com.thonha.backend.common.ApiResponse<AddressResponse>> create(@Valid @RequestBody AddressRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(com.thonha.backend.common.ApiResponse.success(addressService.create(currentUserProvider.requireUserId(), request), "Tạo địa chỉ thành công"));
     }
 
     @PutMapping("/{id}")
-    AddressResponse update(@PathVariable Long id, @Valid @RequestBody AddressRequest r) {
-        return s.update(c.requireUserId(), id, r);
+    public ResponseEntity<com.thonha.backend.common.ApiResponse<AddressResponse>> update(@PathVariable Long id, @Valid @RequestBody AddressRequest request) {
+        return ResponseEntity.ok(com.thonha.backend.common.ApiResponse.success(addressService.update(currentUserProvider.requireUserId(), id, request), "Cập nhật địa chỉ thành công"));
     }
 
     @DeleteMapping("/{id}")
-    ResponseEntity<Void> delete(@PathVariable Long id) {
-        s.delete(c.requireUserId(), id);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<com.thonha.backend.common.ApiResponse<Void>> delete(@PathVariable Long id) {
+        addressService.delete(currentUserProvider.requireUserId(), id);
+        return ResponseEntity.ok(com.thonha.backend.common.ApiResponse.success(null, "Xóa địa chỉ thành công"));
     }
 
     @PatchMapping("/{id}/default")
-    AddressResponse def(@PathVariable Long id) {
-        return s.setDefault(c.requireUserId(), id);
+    public ResponseEntity<com.thonha.backend.common.ApiResponse<AddressResponse>> setDefault(@PathVariable Long id) {
+        return ResponseEntity.ok(com.thonha.backend.common.ApiResponse.success(addressService.setDefault(currentUserProvider.requireUserId(), id), "Đặt làm địa chỉ mặc định thành công"));
     }
 }

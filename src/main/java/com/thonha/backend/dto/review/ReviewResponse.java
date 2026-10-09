@@ -10,7 +10,7 @@ public record ReviewResponse(Long id, Long requestId, String requestCode, int ra
 
     public static ReviewResponse from(Review r) {
         return new ReviewResponse(r.getId(), r.getRequest().getId(), r.getRequest().getRequestCode(),
-                r.getStarRating(), r.getComment(), shortName(r.getCustomer().getFullName()), r.getCreatedAt());
+                r.getRating(), r.getComment(), shortName(r.getCustomer().getFullName()), r.getCreatedAt());
     }
 
     private static String shortName(String fullName) {

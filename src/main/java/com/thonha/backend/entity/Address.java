@@ -10,21 +10,35 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 public class Address {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @EqualsAndHashCode.Include
+    private Long id;
+
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
-    User user;
+    @ToString.Exclude
+    private User user;
+
     @Column(length = 100)
-    String label;
+    private String label;
+
     @Column(name = "full_address", nullable = false, length = 500)
-    String fullAddress;
+    private String fullAddress;
+
     @Column(precision = 10, scale = 7)
-    BigDecimal lat;
+    private BigDecimal lat;
+
     @Column(precision = 10, scale = 7)
-    BigDecimal lng;
+    private BigDecimal lng;
+
     @Column(name = "is_default", nullable = false)
-    boolean defaultAddress;
+    @Builder.Default
+    private Boolean defaultAddress = false;
 }

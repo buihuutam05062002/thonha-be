@@ -1,13 +1,14 @@
 package com.thonha.backend.service;
 
+import com.thonha.backend.enums.RepairStatus;
 import com.thonha.backend.dto.review.CreateReviewRequest;
 import com.thonha.backend.dto.review.ReviewResponse;
 import com.thonha.backend.dto.review.WorkerReviewsResponse;
 import com.thonha.backend.entity.RepairRequest;
 import com.thonha.backend.entity.Review;
 import com.thonha.backend.entity.WorkerProfile;
-import com.thonha.backend.exception.BadRequestException;
-import com.thonha.backend.exception.NotFoundException;
+import com.thonha.backend.common.BadRequestException;
+import com.thonha.backend.common.NotFoundException;
 import com.thonha.backend.repository.RepairRequestRepository;
 import com.thonha.backend.repository.ReviewRepository;
 import com.thonha.backend.repository.WorkerProfileRepository;
@@ -41,7 +42,7 @@ public class ReviewService {
         // Cùng một lỗi 404 cho "không tồn tại" và "của người khác" để không lộ id.
         RepairRequest r = requests.findByIdAndCustomerId(requestId, customerId)
                 .orElseThrow(() -> new NotFoundException("Repair request not found"));
-        if (r.getStatus() != RepairRequest.RepairStatus.COMPLETED) {
+        if (r.getStatus() != RepairStatus.COMPLETED) {
             throw new BadRequestException("Chỉ có thể đánh giá khi yêu cầu đã hoàn thành");
         }
         if (r.getWorker() == null) {
@@ -55,7 +56,7 @@ public class ReviewService {
         rv.setRequest(r);
         rv.setCustomer(r.getCustomer());
         rv.setWorker(r.getWorker());
-        rv.setStarRating(dto.rating());
+        rv.setRating(dto.rating());
         String comment = dto.comment() == null ? null : dto.comment().trim();
         rv.setComment(comment == null || comment.isEmpty() ? null : comment);
         try {

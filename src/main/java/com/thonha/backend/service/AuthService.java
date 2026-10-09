@@ -1,10 +1,20 @@
 package com.thonha.backend.service;
 
-import com.thonha.backend.dto.*;
-import com.thonha.backend.dto.auth.*;
-import com.thonha.backend.entity.*;
-import com.thonha.backend.exception.*;
-import com.thonha.backend.repository.*;
+
+import com.thonha.backend.common.ApiException;
+import  com.thonha.backend.common.ErrorCode;
+import com.thonha.backend.dto.request.LoginRequest;
+import com.thonha.backend.dto.request.RefreshRequest;
+import com.thonha.backend.dto.request.RegisterRequest;
+import com.thonha.backend.dto.response.AuthResponse;
+import com.thonha.backend.dto.response.UserResponse;
+import com.thonha.backend.entity.RefreshToken;
+import com.thonha.backend.entity.Role;
+import com.thonha.backend.entity.User;
+import com.thonha.backend.enums.UserStatus;
+import com.thonha.backend.repository.RefreshTokenRepository;
+import com.thonha.backend.repository.RoleRepository;
+import com.thonha.backend.repository.UserRepository;
 import com.thonha.backend.security.JwtService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -14,117 +24,176 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class AuthService {
-    private final UserRepository users;
-    private final RoleRepository roles;
-    private final RefreshTokenRepository tokens;
-    private final PasswordEncoder encoder;
-    private final JwtService jwt;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
     private final long refreshDays;
 
-    public AuthService(UserRepository u, RoleRepository r, RefreshTokenRepository t, PasswordEncoder e, JwtService j, @Value("${app.jwt.refresh-days:7}") long refreshDays) {
-        users = u;
-        roles = r;
-        tokens = t;
-        encoder = e;
-        jwt = j;
+    public AuthService(UserRepository userRepository,
+                       RoleRepository roleRepository,
+                       RefreshTokenRepository refreshTokenRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtService jwtService,
+                       @Value("${app.jwt.refresh-days:7}") long refreshDays) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
         this.refreshDays = refreshDays;
     }
 
     @Transactional
-    public AuthResponse register(RegisterRequest r) {
-        String email = blank(r.email()), phone = blank(r.phoneNumber());
-        if (email == null && phone == null) throw new BadRequestException("Email or phone is required");
-        if (email != null && users.existsByEmailIgnoreCase(email))
-            throw new BadRequestException("Email is already in use");
-        if (phone != null && users.existsByPhoneNumber(phone)) throw new BadRequestException("Phone is already in use");
-        User u = new User();
-        u.setFullName(r.fullName().trim());
-        u.setEmail(email);
-        u.setPhoneNumber(phone);
-        u.setPassword(encoder.encode(r.password()));
-        u.setStatus(UserStatus.ACTIVE);
-        u.getRoles().add(role(Role.CUSTOMER));
-        users.save(u);
-        return issue(u);
+    public AuthResponse register(RegisterRequest request) {
+        String email = blank(request.getEmail());
+        String phone = blank(request.getPhoneNumber());
+
+        if (email == null && phone == null) {
+            throw new ApiException(ErrorCode.INVALID_REQUEST, "Email hoặc số điện thoại là bắt buộc");
+        }
+        if (email != null && userRepository.existsByEmailIgnoreCase(email)) {
+            throw new ApiException(ErrorCode.EMAIL_EXISTS, "Email đã được sử dụng");
+        }
+        if (phone != null && userRepository.existsByPhoneNumber(phone)) {
+            throw new ApiException(ErrorCode.PHONE_EXISTS, "Số điện thoại đã được sử dụng");
+        }
+        if (request.getUsername() != null && userRepository.existsByUsername(request.getUsername())) {
+            throw new ApiException(ErrorCode.USERNAME_EXISTS, "Tên đăng nhập đã được sử dụng");
+        }
+
+        User user = new User();
+        user.setFullName(request.getFullName().trim());
+        user.setEmail(email);
+        user.setPhoneNumber(phone);
+        user.setUsername(request.getUsername());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setStatus(UserStatus.ACTIVE);
+        user.getRoles().add(getRole(Role.CUSTOMER));
+        userRepository.save(user);
+
+        return issueTokens(user);
     }
 
     @Transactional
-    public AuthResponse login(LoginRequest r) {
-        String x = r.account().trim();
-        User u = x.contains("@") ? users.findByEmailIgnoreCase(x).orElse(null) : users.findByPhoneNumber(x).orElse(null);
-        if (u == null || !encoder.matches(r.password(), u.getPassword()))
-            throw new UnauthorizedException("Invalid account or password");
-        if (u.getStatus() != UserStatus.ACTIVE) throw new UnauthorizedException("Account is not active");
-        return issue(u);
+    public AuthResponse login(LoginRequest request) {
+        String account = request.getAccount().trim();
+        User user = account.contains("@")
+                ? userRepository.findByEmailIgnoreCase(account).orElse(null)
+                : userRepository.findByPhoneNumber(account).orElse(null);
+
+        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new ApiException(ErrorCode.INVALID_CREDENTIALS_LOGIN);
+        }
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            if (user.getStatus() == UserStatus.LOCKED) {
+                throw new ApiException(ErrorCode.ACCOUNT_LOCKED);
+            }
+            throw new ApiException(ErrorCode.ACCOUNT_INACTIVE);
+        }
+
+        return issueTokens(user);
     }
 
     @Transactional
-    public AuthResponse refresh(String raw) {
-        RefreshToken rt = tokens.findByTokenHash(hash(raw)).orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
-        if (rt.getRevokedAt() != null || rt.getExpiresAt().isBefore(LocalDateTime.now()))
-            throw new UnauthorizedException("Refresh token expired");
-        User u = rt.getUser();
-        if (u.getStatus() != UserStatus.ACTIVE) throw new UnauthorizedException("Account is not active");
-        rt.setRevokedAt(LocalDateTime.now());
-        return issue(u);
+    public AuthResponse refresh(RefreshRequest request) {
+        String tokenHash = hash(request.getRefreshToken());
+        RefreshToken refreshTokenEntity = refreshTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new ApiException(ErrorCode.REFRESH_TOKEN_NOT_FOUND));
+
+        if (refreshTokenEntity.getRevokedAt() != null || refreshTokenEntity.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new ApiException(ErrorCode.REFRESH_TOKEN_EXPIRED);
+        }
+
+        User user = refreshTokenEntity.getUser();
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new ApiException(ErrorCode.ACCOUNT_INACTIVE);
+        }
+
+        refreshTokenEntity.setRevokedAt(LocalDateTime.now());
+        return issueTokens(user);
     }
 
     @Transactional
-    public void logout(String raw) {
-        tokens.findByTokenHash(hash(raw)).ifPresent(t -> t.setRevokedAt(LocalDateTime.now()));
+    public void logout(RefreshRequest request) {
+        if (request != null && request.getRefreshToken() != null) {
+            String tokenHash = hash(request.getRefreshToken());
+            refreshTokenRepository.findByTokenHash(tokenHash)
+                    .ifPresent(t -> t.setRevokedAt(LocalDateTime.now()));
+        }
     }
 
-    public UserResponse me(Long id) {
-        return UserResponse.from(users.findById(id).orElseThrow(() -> new UnauthorizedException("Account not found")));
+    public UserResponse getMe(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException( ErrorCode.USER_NOT_FOUND));
+        return UserResponse.from(user);
     }
 
     @Transactional
-    public UserResponse update(Long id, String fullName, String avatarUrl, String phoneNumber) {
-        User u = users.findById(id).orElseThrow(() -> new UnauthorizedException("Account not found"));
-        u.setFullName(fullName.trim());
-        u.setAvatarUrl(blank(avatarUrl));
+    /**
+     * phoneNumber: null = giữ nguyên, "" = xóa số, còn lại = đổi sang số mới.
+     */
+    public UserResponse updateProfile(Long userId, String fullName, String avatarUrl, String phoneNumber) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
+        user.setFullName(fullName.trim());
+        user.setAvatarUrl(blank(avatarUrl));
         if (phoneNumber != null) {
             String phone = blank(phoneNumber);
             if (phone == null) {
                 // Không cho xóa số nếu tài khoản không còn email, nếu không sẽ không đăng nhập được nữa.
-                if (u.getEmail() == null) {
-                    throw new BadRequestException("Bạn cần giữ ít nhất email hoặc số điện thoại để đăng nhập");
+                if (user.getEmail() == null) {
+                    throw new ApiException(ErrorCode.INVALID_REQUEST,
+                            "Bạn cần giữ ít nhất email hoặc số điện thoại để đăng nhập");
                 }
-                u.setPhoneNumber(null);
-            } else if (!phone.equals(u.getPhoneNumber())) {
-                if (users.existsByPhoneNumber(phone)) {
-                    throw new BadRequestException("Số điện thoại đã được sử dụng");
+                user.setPhoneNumber(null);
+            } else if (!phone.equals(user.getPhoneNumber())) {
+                if (userRepository.existsByPhoneNumber(phone)) {
+                    throw new ApiException(ErrorCode.PHONE_EXISTS, "Số điện thoại đã được sử dụng");
                 }
-                u.setPhoneNumber(phone);
+                user.setPhoneNumber(phone);
             }
         }
-        return UserResponse.from(u);
+        return UserResponse.from(userRepository.save(user));
     }
 
-    private Role role(String n) {
-        return roles.findByName(n).orElseThrow(() -> new IllegalStateException("Role not configured: " + n));
+    private Role getRole(String name) {
+        return roleRepository.findByName(name)
+                .orElseThrow(() -> new IllegalStateException("Role not configured: " + name));
     }
 
-    private AuthResponse issue(User u) {
-        String a = jwt.accessToken(u.getId(), u.getRoles().stream().map(Role::getName).toList()), r = jwt.refreshToken(u.getId());
-        RefreshToken rt = new RefreshToken();
-        rt.setUser(u);
-        rt.setTokenHash(hash(r));
-        rt.setExpiresAt(LocalDateTime.now().plusDays(refreshDays));
-        tokens.save(rt);
-        return new AuthResponse(a, r, jwt.accessExpiresIn(), UserResponse.from(u));
+    private AuthResponse issueTokens(User user) {
+        List<String> roles = user.getRoles().stream().map(Role::getName).toList();
+        String accessToken = jwtService.accessToken(user.getId(), roles);
+        String refreshTokenValue = jwtService.refreshToken(user.getId());
+
+        RefreshToken refreshTokenEntity = RefreshToken.builder()
+                .user(user)
+                .tokenHash(hash(refreshTokenValue))
+                .expiresAt(LocalDateTime.now().plusDays(refreshDays))
+                .build();
+        refreshTokenRepository.save(refreshTokenEntity);
+
+        return com.thonha.backend.dto.response.AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshTokenValue)
+                .accessExpiresIn(jwtService.accessExpiresIn())
+                .user(UserResponse.from(user))
+                .build();
     }
 
     private static String blank(String x) {
         return x == null || x.isBlank() ? null : x.trim();
     }
 
-    private static String hash(String x) {
+    private String hash(String x) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(x.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {

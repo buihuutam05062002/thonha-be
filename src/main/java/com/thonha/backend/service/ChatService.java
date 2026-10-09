@@ -4,8 +4,8 @@ import com.thonha.backend.dto.chat.MessageResponse;
 import com.thonha.backend.entity.Message;
 import com.thonha.backend.entity.RepairRequest;
 import com.thonha.backend.entity.User;
-import com.thonha.backend.exception.NotFoundException;
-import com.thonha.backend.exception.UnauthorizedException;
+import com.thonha.backend.common.NotFoundException;
+import com.thonha.backend.common.ForbiddenException;
 import com.thonha.backend.repository.MessageRepository;
 import com.thonha.backend.repository.RepairRequestRepository;
 import com.thonha.backend.repository.UserRepository;
@@ -101,7 +101,7 @@ public class ChatService {
         RepairRequest r = requests.findById(requestId).orElseThrow(() -> new NotFoundException("Repair request not found"));
         boolean isCustomer = r.getCustomer().getId().equals(userId);
         boolean isWorker = r.getWorker() != null && r.getWorker().getUser().getId().equals(userId);
-        if (!isCustomer && !isWorker) throw new UnauthorizedException("You don't have access to this conversation");
+        if (!isCustomer && !isWorker) throw new ForbiddenException("You don't have access to this conversation");
         return r;
     }
 }

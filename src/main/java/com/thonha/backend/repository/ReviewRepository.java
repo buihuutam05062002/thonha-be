@@ -10,12 +10,13 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
-
     interface RatingStats {
         Double getAvg();
 
         Long getCnt();
     }
+
+    long countByWorkerId(Long workerId);
 
     boolean existsByRequestId(Long requestId);
 
@@ -23,9 +24,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     Page<Review> findByWorker_User_IdOrderByCreatedAtDesc(Long workerUserId, Pageable pageable);
 
-    @Query("select avg(r.starRating) as avg, count(r) as cnt from Review r where r.worker.id = :workerId")
+    @Query("select avg(r.rating) as avg, count(r) as cnt from Review r where r.worker.id = :workerId")
     RatingStats statsForWorker(@Param("workerId") Long workerId);
 
-    @Query("select avg(r.starRating) as avg, count(r) as cnt from Review r where r.worker.user.id = :userId")
+    @Query("select avg(r.rating) as avg, count(r) as cnt from Review r where r.worker.user.id = :userId")
     RatingStats statsForWorkerUser(@Param("userId") Long userId);
 }

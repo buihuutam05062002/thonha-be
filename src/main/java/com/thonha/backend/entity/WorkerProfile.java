@@ -1,66 +1,132 @@
 package com.thonha.backend.entity;
 
+
+import com.thonha.backend.enums.ApprovalStatus;
+import com.thonha.backend.enums.AvailabilityStatus;
+import com.thonha.backend.enums.DocumentType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "worker_profile")
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 public class WorkerProfile {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @EqualsAndHashCode.Include
+    private Long id;
+
     @OneToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
-    User user;
-    @Column(name = "province_city", nullable = false, length = 100)
-    String provinceCity;
-    @Column(name = "operating_area", nullable = false, length = 255)
-    String operatingArea;
-    @Column(name = "experience_years", nullable = false)
-    Integer experienceYears;
+    @ToString.Exclude
+    private User user;
+
+    @Column(name = "residence_city", nullable = false, length = 100)
+    private String provinceCity;
+
+    @Column(name = "service_area", nullable = false, length = 255)
+    private String operatingArea;
+
+    @Column(name = "years_of_experience", nullable = false)
+    private Integer experienceYears;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "approval_status", nullable = false, length = 20)
-    ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
+    @Builder.Default
+    private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "availability_status", nullable = false, length = 20)
-    AvailabilityStatus availabilityStatus = AvailabilityStatus.OFFLINE;
+    @Builder.Default
+    private AvailabilityStatus availabilityStatus = AvailabilityStatus.OFFLINE;
+
     @Column(name = "average_rating", nullable = false, precision = 3, scale = 2)
-    BigDecimal averageRating = BigDecimal.ZERO;
+    @Builder.Default
+    private BigDecimal averageRating = BigDecimal.ZERO;
+
     @Column(name = "acceptance_rate", nullable = false, precision = 5, scale = 2)
-    BigDecimal acceptanceRate = new BigDecimal("100.00");
-    @Column(name = "ongoing_jobs_count", nullable = false)
-    Integer ongoingJobsCount = 0;
+    @Builder.Default
+    private BigDecimal acceptanceRate = new BigDecimal("100.00");
+
+    @Column(name = "active_job_count", nullable = false)
+    @Builder.Default
+    private Integer ongoingJobsCount = 0;
+
+    // Thời điểm nộp hồ sơ (nullable để tương thích với các hồ sơ cũ chưa có dữ liệu)
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
     @Column(name = "reviewed_at")
-    LocalDateTime reviewedAt;
+    private LocalDateTime reviewedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewed_by")
-    User reviewedBy;
-    @Column(name = "reject_reason", length = 500)
-    String rejectReason;
-    @OneToMany(mappedBy = "workerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
-    Set<WorkerDocument> documents = new HashSet<>();
-    @OneToMany(mappedBy = "workerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
-    Set<WorkerSpecialty> specialties = new HashSet<>();
+    @ToString.Exclude
+    private User reviewedBy;
 
-    public void addDocument(DocumentType t, String url) {
-        WorkerDocument d = new WorkerDocument();
-        d.setWorkerProfile(this);
-        d.setType(t);
-        d.setFileUrl(url);
-        documents.add(d);
+    @Column(name = "reject_reason", length = 500)
+    private String rejectReason;
+
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "bank_account_id")
+    @ToString.Exclude
+    private BankAccount bankAccount;
+
+    // Dùng List thay vì Set: entity mới chưa có id nên Lombok equals coi tất cả là bằng nhau,
+    // HashSet sẽ làm mất phần tử (ví dụ CCCD mặt trước và mặt sau)
+    // Hibernate không cho JOIN FETCH 2 bag cùng lúc (MultipleBagFetchException),
+    // nên các collection này để LAZY và nạp theo lô bằng @BatchSize
+    @OneToMany(mappedBy = "workerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
+    @OrderBy("id ASC")
+    @Builder.Default
+    @ToString.Exclude
+    private List<WorkerDocument> documents = new ArrayList<>();
+
+    @OneToMany(mappedBy = "workerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
+    @Builder.Default
+    @ToString.Exclude
+    private List<WorkerSpecialty> specialties = new ArrayList<>();
+
+    public void addDocument(DocumentType type, String fileUrl) {
+        WorkerDocument doc = WorkerDocument.builder()
+                .workerProfile(this)
+                .type(type)
+                .fileUrl(fileUrl)
+                .build();
+        documents.add(doc);
     }
 
-    public void addSpecialty(ServiceCategory c) {
-        WorkerSpecialty s = new WorkerSpecialty();
-        s.setWorkerProfile(this);
-        s.setServiceCategory(c);
-        specialties.add(s);
+    public void addSpecialty(ServiceCategory category) {
+        boolean exists = specialties.stream()
+                .anyMatch(s -> s.getServiceCategory().getId().equals(category.getId()));
+        if (exists) {
+            return;
+        }
+        WorkerSpecialty specialty = WorkerSpecialty.builder()
+                .workerProfile(this)
+                .serviceCategory(category)
+                .build();
+        specialties.add(specialty);
+    }
+
+    public void removeSpecialty(ServiceCategory category) {
+        specialties.removeIf(s -> s.getServiceCategory().getId().equals(category.getId()));
     }
 }

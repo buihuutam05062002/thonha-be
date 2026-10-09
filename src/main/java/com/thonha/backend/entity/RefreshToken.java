@@ -10,17 +10,36 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 public class RefreshToken {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @EqualsAndHashCode.Include
+    private Long id;
+
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
-    User user;
+    @ToString.Exclude
+    private User user;
+
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
-    String tokenHash;
+    private String tokenHash;
+
     @Column(name = "expires_at", nullable = false)
-    LocalDateTime expiresAt;
+    private LocalDateTime expiresAt;
+
     @Column(name = "revoked_at")
-    LocalDateTime revokedAt;
+    private LocalDateTime revokedAt;
+
+    public boolean isExpired() {
+        return LocalDateTime.now().isAfter(expiresAt);
+    }
+
+    public boolean isRevoked() {
+        return revokedAt != null;
+    }
 }

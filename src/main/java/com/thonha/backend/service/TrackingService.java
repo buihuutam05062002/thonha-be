@@ -5,11 +5,11 @@ import com.thonha.backend.dto.tracking.LocationMessage;
 import com.thonha.backend.dto.tracking.TrackingEvent;
 import com.thonha.backend.dto.tracking.TrackingSnapshot;
 import com.thonha.backend.entity.RepairRequest;
-import com.thonha.backend.entity.RepairRequest.RepairStatus;
+import com.thonha.backend.enums.RepairStatus;
 import com.thonha.backend.entity.User;
-import com.thonha.backend.exception.BadRequestException;
-import com.thonha.backend.exception.NotFoundException;
-import com.thonha.backend.exception.UnauthorizedException;
+import com.thonha.backend.common.BadRequestException;
+import com.thonha.backend.common.NotFoundException;
+import com.thonha.backend.common.ForbiddenException;
 import com.thonha.backend.repository.RepairRequestRepository;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class TrackingService {
     /** Chỉ theo dõi vị trí khi thợ đã được ghép và chưa bắt đầu sửa. */
-    private static final List<RepairStatus> TRACKABLE = List.of(RepairStatus.ASSIGNED, RepairStatus.ON_THE_WAY);
+    private static final List<RepairStatus> TRACKABLE = List.of(RepairStatus.MATCHED, RepairStatus.ON_THE_WAY);
     /** Tốc độ trung bình dùng để ước tính thời gian đến (km/h) - xe máy trong nội thành. */
     private static final double AVG_SPEED_KMH = 25.0;
     /** Bỏ qua tin gửi quá dày (tối đa 1 tin/giây cho mỗi yêu cầu). */
@@ -48,7 +48,7 @@ public class TrackingService {
         }
         RepairRequest r = requests.findById(requestId).orElseThrow(() -> new NotFoundException("Repair request not found"));
         if (r.getWorker() == null || !r.getWorker().getUser().getId().equals(userId)) {
-            throw new UnauthorizedException("You are not assigned to this request");
+            throw new ForbiddenException("You are not assigned to this request");
         }
         if (!TRACKABLE.contains(r.getStatus())) {
             throw new BadRequestException("Request is not in a trackable state");
@@ -59,7 +59,7 @@ public class TrackingService {
         if (prev != null && now - prev.updatedAt() < MIN_INTERVAL_MS) return;
 
         // Thợ bắt đầu chia sẻ vị trí = bắt đầu di chuyển
-        if (r.getStatus() == RepairStatus.ASSIGNED) r.setStatus(RepairStatus.ON_THE_WAY);
+        if (r.getStatus() == RepairStatus.MATCHED) r.setStatus(RepairStatus.ON_THE_WAY);
 
         Long distance = null;
         Integer eta = null;
@@ -99,7 +99,7 @@ public class TrackingService {
     /** Các đơn thợ đang thực hiện (để thợ chọn đơn chia sẻ vị trí). */
     @Transactional(readOnly = true)
     public List<ActiveJob> activeJobs(Long userId) {
-        return requests.findByWorker_User_IdAndStatusInOrderByCreatedAtDesc(userId, TRACKABLE).stream()
+        return requests.findActiveByWorkerUser(userId, TRACKABLE).stream()
                 .map(r -> new ActiveJob(r.getId(), r.getRequestCode(), r.getStatus().name(), r.getCategory().getName(),
                         r.getDescription(), r.getAddressText(), toDouble(r.getLat()), toDouble(r.getLng())))
                 .toList();

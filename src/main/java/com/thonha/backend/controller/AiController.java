@@ -1,7 +1,7 @@
 package com.thonha.backend.controller;
 
-import com.thonha.backend.entity.CategoryStatus;
-import com.thonha.backend.exception.BadRequestException;
+import com.thonha.backend.enums.CategoryStatus;
+import com.thonha.backend.common.BadRequestException;
 import com.thonha.backend.repository.ServiceCategoryRepository;
 import com.thonha.backend.security.CurrentUserProvider;
 import com.thonha.backend.service.ai.IncidentClassifier;

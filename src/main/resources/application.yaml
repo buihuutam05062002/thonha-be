@@ -1,13 +1,20 @@
+# Mọi secret/khóa API đọc từ biến môi trường - xem .env.example
 spring:
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/vuatho?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
 
   jpa:
     hibernate:
+      # Schema do db/migration quản lý; Hibernate chỉ kiểm tra entity khớp schema
       ddl-auto: validate
     open-in-view: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
   servlet:
     multipart:
@@ -23,29 +30,26 @@ app:
     access-minutes: ${JWT_ACCESS_MINUTES:30}
     refresh-days: ${JWT_REFRESH_DAYS:7}
 
+  cloudinary:
+    url: ${CLOUDINARY_URL:}
+
+  # GOONG_API_KEY: khóa REST (tìm địa chỉ, tính khoảng cách) - chỉ dùng ở backend
+  goong:
+    api-key: ${GOONG_API_KEY:}
+
   gemini:
     api-key: ${GEMINI_API_KEY:}
     model: ${GEMINI_MODEL:gemini-flash-latest}
-    fallback-models: ${GEMINI_FALLBACK_MODELS:}   # ví dụ: gemini-flash-lite-latest (tên các model cách nhau bằng dấu phẩy)
+    fallback-models: ${GEMINI_FALLBACK_MODELS:}   # tên các model cách nhau bằng dấu phẩy
     base-url: https://generativelanguage.googleapis.com/v1beta
     timeout-seconds: 15
     min-confidence: 0.5
 
-  otp:
-    ttl-minutes: ${OTP_TTL_MINUTES:5}
-    max-attempts: ${OTP_MAX_ATTEMPTS:5}
-    expose-in-response: ${OTP_EXPOSE_IN_RESPONSE:true}
-
-  cloudinary:
-    url: ${CLOUDINARY_URL}
-
-  goong:
-    api-key: ${GOONG_API_KEY}
-
   admin:
     email: ${ADMIN_EMAIL:admin@vuatho.com}
-    password: ${ADMIN_PASSWORD:Admin@123}
+    password: ${ADMIN_PASSWORD:}
     full-name: Administrator
+    phone: ${ADMIN_PHONE:0900000000}
 
 logging:
   level:
